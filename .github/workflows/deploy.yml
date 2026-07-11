@@ -26,6 +26,11 @@ jobs:
       - run: npm ci
       - run: npm run build
       - uses: actions/configure-pages@v5
+        with:
+          # try to create the Pages site automatically on first deploy;
+          # falls back to the documented Settings→Pages manual step if the
+          # workflow token lacks permission
+          enablement: true
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
