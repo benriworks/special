@@ -58,6 +58,7 @@ export function mountControls(root: HTMLElement, engine: Engine): ControlsHandle
 
         const input = document.createElement('input');
         input.type = 'range';
+        input.setAttribute('aria-label', pick(def.label));
         input.min = String(def.min);
         input.max = String(def.max);
         input.step = String(def.step);
@@ -72,6 +73,7 @@ export function mountControls(root: HTMLElement, engine: Engine): ControlsHandle
         const input = document.createElement('input');
         input.type = 'text';
         input.className = 'text-input';
+        input.setAttribute('aria-label', pick(def.label));
         input.value = String(currentValue(modeId, def));
         if (def.maxLength) input.maxLength = def.maxLength;
         if (def.placeholder) input.placeholder = pick(def.placeholder);
@@ -85,10 +87,15 @@ export function mountControls(root: HTMLElement, engine: Engine): ControlsHandle
         for (const opt of def.options) {
           const chip = document.createElement('button');
           chip.className = 'chip' + (opt.value === active ? ' active' : '');
+          chip.setAttribute('aria-pressed', String(opt.value === active));
           chip.textContent = pick(opt.label);
           chip.addEventListener('click', () => {
-            for (const c of chips.children) c.classList.remove('active');
+            for (const c of chips.children) {
+              c.classList.remove('active');
+              c.setAttribute('aria-pressed', 'false');
+            }
             chip.classList.add('active');
+            chip.setAttribute('aria-pressed', 'true');
             apply(def.key, opt.value);
           });
           chips.appendChild(chip);
@@ -126,9 +133,14 @@ export function mountControls(root: HTMLElement, engine: Engine): ControlsHandle
   if (vv) {
     const onVV = () => {
       if (!openModeId) return;
-      if (!panel.contains(document.activeElement)) return;
+      // translate up only while an input inside the panel is focused, but always
+      // allow the reset — otherwise the offset sticks when the input blurs and
+      // the keyboard dismisses (the resize lands after focus already left)
       const covered = window.innerHeight - vv.height - vv.offsetTop;
-      panel.style.transform = covered > 0 ? `translateX(-50%) translateY(-${covered}px)` : '';
+      panel.style.transform =
+        covered > 0 && panel.contains(document.activeElement)
+          ? `translateX(-50%) translateY(-${covered}px)`
+          : '';
     };
     vv.addEventListener('resize', onVV);
     vv.addEventListener('scroll', onVV);

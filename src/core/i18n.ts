@@ -19,6 +19,7 @@ const STRINGS: Record<string, { ja: string; en: string }> = {
   linkCopied: { ja: 'リンクをコピーしました', en: 'Link copied' },
   pulse: { ja: 'パルス', en: 'Pulse' },
   hideBar: { ja: 'バーを隠す', en: 'Hide bar' },
+  showBar: { ja: 'バーを表示', en: 'Show toolbar' },
 
   aboutTagline: { ja: '光の遊び場', en: 'Playground of Light' },
   aboutIntro: {

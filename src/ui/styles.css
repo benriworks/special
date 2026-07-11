@@ -3,9 +3,10 @@
    ========================================================================== */
 
 :root {
-  --ui-bar-bg: rgba(10, 12, 18, 0.55);
+  --ui-bar-bg: rgba(10, 12, 18, 0.72);
   --ui-text: rgba(255, 255, 255, 0.92);
-  --ui-text-dim: rgba(255, 255, 255, 0.55);
+  --ui-text-dim: rgba(255, 255, 255, 0.55); /* icons / large decorative text */
+  --ui-text-dim2: rgba(255, 255, 255, 0.7); /* small (9-12px) text on glass */
   --ui-border: rgba(255, 255, 255, 0.14);
   --ui-hover-bg: rgba(255, 255, 255, 0.08);
   --ui-active-bg: rgba(255, 255, 255, 0.15);
@@ -54,6 +55,7 @@ button {
   border: none;
   padding: 0;
   cursor: pointer;
+  touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
 }
 button:focus-visible { outline: none; box-shadow: var(--ui-focus-ring); border-radius: 12px; }
@@ -92,6 +94,10 @@ button:focus-visible { outline: none; box-shadow: var(--ui-focus-ring); border-r
   transform: translateX(-50%) translateY(calc(100% + 16px));
   opacity: 0;
   pointer-events: none;
+  /* remove hidden bar from the tab order once the slide-out finishes;
+     revealing uses the base transition (visibility flips instantly) */
+  visibility: hidden;
+  transition: transform 0.45s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.4s ease, visibility 0s 0.45s;
 }
 
 .bar {
@@ -100,6 +106,7 @@ button:focus-visible { outline: none; box-shadow: var(--ui-focus-ring); border-r
   gap: 2px;
   height: 56px;
   padding: 0 10px;
+  touch-action: manipulation;
   border-radius: 28px;
   background: #0e1118f0;
   border: 1px solid var(--ui-border);
@@ -133,7 +140,7 @@ button:focus-visible { outline: none; box-shadow: var(--ui-focus-ring); border-r
   justify-content: center;
   gap: 1px;
   border-radius: 16px;
-  color: var(--ui-text-dim);
+  color: var(--ui-text-dim2);
   transition: color 0.25s ease;
 }
 .tab:hover { color: var(--ui-text); }
@@ -169,6 +176,7 @@ button:focus-visible { outline: none; box-shadow: var(--ui-focus-ring); border-r
 }
 
 .swatch {
+  position: relative;
   width: 28px;
   height: 28px;
   min-width: 28px;
@@ -176,6 +184,8 @@ button:focus-visible { outline: none; box-shadow: var(--ui-focus-ring); border-r
   border: 1px solid var(--ui-border);
   transition: transform 0.2s ease;
 }
+/* invisible hit-target extension: 28px visual circle, 44px touch target */
+.swatch::after { content: ""; position: absolute; inset: -8px; }
 .swatch:hover { transform: scale(1.12); }
 .swatch:focus-visible { border-radius: 50%; }
 
@@ -192,7 +202,8 @@ button:focus-visible { outline: none; box-shadow: var(--ui-focus-ring); border-r
 }
 .bar-btn:hover { color: var(--ui-text); background: var(--ui-hover-bg); }
 .bar-btn:active { background: var(--ui-active-bg); }
-.bar-btn .txt { font-size: 11px; letter-spacing: 0.06em; }
+.bar-btn .txt { font-size: 11px; letter-spacing: 0.06em; color: var(--ui-text-dim2); }
+.bar-btn:hover .txt, .bar-btn:active .txt { color: var(--ui-text); }
 
 .desktop-actions { display: none; align-items: center; gap: 2px; }
 .overflow-btn { display: flex; }
@@ -212,6 +223,7 @@ button:focus-visible { outline: none; box-shadow: var(--ui-focus-ring); border-r
   border-radius: 3px;
   background: var(--ui-text);
   opacity: 0;
+  visibility: hidden; /* keep out of the tab order while the bar is shown */
   pointer-events: none;
   z-index: 39;
   border: none;
@@ -220,6 +232,7 @@ button:focus-visible { outline: none; box-shadow: var(--ui-focus-ring); border-r
 }
 .bar-handle.visible {
   opacity: 0.35;
+  visibility: visible;
   pointer-events: auto;
   animation: handle-breathe 3s ease-in-out infinite;
 }
@@ -261,14 +274,16 @@ button:focus-visible { outline: none; box-shadow: var(--ui-focus-ring); border-r
   flex-direction: column;
   gap: 2px;
   padding: 8px;
+  touch-action: manipulation;
   border-radius: 18px;
   background: #0e1118f0;
   border: 1px solid var(--ui-border);
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
   opacity: 0;
   transform: translateY(6px);
+  visibility: hidden; /* after the fade-out: unfocusable while closed */
   pointer-events: none;
-  transition: opacity 0.18s ease, transform 0.18s ease;
+  transition: opacity 0.18s ease, transform 0.18s ease, visibility 0s 0.18s;
 }
 @supports (backdrop-filter: blur(16px)) or (-webkit-backdrop-filter: blur(16px)) {
   .popover {
@@ -280,7 +295,9 @@ button:focus-visible { outline: none; box-shadow: var(--ui-focus-ring); border-r
 .popover.open {
   opacity: 1;
   transform: translateY(0);
+  visibility: visible;
   pointer-events: auto;
+  transition: opacity 0.18s ease, transform 0.18s ease; /* visibility flips instantly on open */
 }
 .popover-item {
   display: flex;
@@ -306,7 +323,7 @@ button:focus-visible { outline: none; box-shadow: var(--ui-focus-ring); border-r
   margin-left: auto;
   font-family: var(--font-mono);
   font-size: 10px;
-  color: var(--ui-text-dim);
+  color: var(--ui-text-dim2);
 }
 
 /* --------------------------------------------------------------------------
@@ -323,13 +340,15 @@ button:focus-visible { outline: none; box-shadow: var(--ui-focus-ring); border-r
   min-width: 260px;
   max-width: min(92vw, 420px);
   padding: 14px 18px;
+  touch-action: manipulation;
   border-radius: 20px;
   background: #0e1118f0;
   border: 1px solid var(--ui-border);
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
   opacity: 0;
+  visibility: hidden; /* after the fade-out: unfocusable while closed */
   pointer-events: none;
-  transition: opacity 0.2s ease, transform 0.2s ease;
+  transition: opacity 0.2s ease, transform 0.2s ease, visibility 0s 0.2s;
 }
 @supports (backdrop-filter: blur(16px)) or (-webkit-backdrop-filter: blur(16px)) {
   .controls {
@@ -338,14 +357,19 @@ button:focus-visible { outline: none; box-shadow: var(--ui-focus-ring); border-r
     -webkit-backdrop-filter: blur(16px) saturate(140%);
   }
 }
-.controls.open { opacity: 1; pointer-events: auto; }
+.controls.open {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transition: opacity 0.2s ease, transform 0.2s ease; /* visibility flips instantly on open */
+}
 
 .control-row { display: flex; flex-direction: column; gap: 6px; }
 .control-head {
   display: flex;
   justify-content: space-between;
   font-size: 12px;
-  color: var(--ui-text-dim);
+  color: var(--ui-text-dim2);
 }
 .control-head .val { font-family: var(--font-mono); font-size: 11px; }
 
@@ -398,7 +422,7 @@ button:focus-visible { outline: none; box-shadow: var(--ui-focus-ring); border-r
   padding: 6px 14px;
   border-radius: 999px;
   font-size: 12px;
-  color: var(--ui-text-dim);
+  color: var(--ui-text-dim2);
   border: 1px solid var(--ui-border);
   transition: all 0.15s ease;
 }
@@ -504,10 +528,16 @@ button:focus-visible { outline: none; box-shadow: var(--ui-focus-ring); border-r
   justify-content: center;
   padding: 20px;
   opacity: 0;
+  visibility: hidden; /* closed dialog children (close btn, GitHub link) leave the tab order */
   pointer-events: none;
-  transition: opacity 0.25s ease;
+  transition: opacity 0.25s ease, visibility 0s 0.25s;
 }
-.about-scrim.open { opacity: 1; pointer-events: auto; }
+.about-scrim.open {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transition: opacity 0.25s ease; /* visibility flips instantly on open */
+}
 
 .about-card {
   width: 100%;
@@ -647,7 +677,7 @@ button:focus-visible { outline: none; box-shadow: var(--ui-focus-ring); border-r
   .lumina-flash { display: none; }
   .touch-ripple { animation-duration: 0.3s; }
   .about-card { transition: none; }
-  .popover { transition: opacity 0.18s ease; transform: none; }
+  .popover { transition: opacity 0.18s ease, visibility 0s 0.18s; transform: none; }
 }
 @keyframes echo-fade {
   0% { opacity: 0; }

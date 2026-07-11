@@ -51,12 +51,16 @@ export function mountShell(root: HTMLElement, engine: Engine): void {
   const barWrap = el('div', 'bar-wrap', root);
   const bar = el('div', 'bar', barWrap);
   const tabsEl = el('div', 'tabs', bar);
+  tabsEl.setAttribute('role', 'tablist');
   const pill = el('div', 'tab-pill', tabsEl);
+  pill.setAttribute('aria-hidden', 'true');
 
   const tabBtns = new Map<string, HTMLButtonElement>();
   for (const mode of engine.modes) {
     const b = el('button', 'tab', tabsEl);
     b.dataset.mode = mode.id;
+    b.setAttribute('role', 'tab');
+    b.setAttribute('aria-selected', String(mode.id === engine.activeModeId));
     b.innerHTML = modeIcon(mode.id);
     const label = el('span', 'label', b);
     label.textContent = pick(mode.name);
@@ -87,7 +91,6 @@ export function mountShell(root: HTMLElement, engine: Engine): void {
   const overflowBtn = mkBtn(bar, ICONS.more, 'bar-btn overflow-btn');
 
   const handle = el('button', 'bar-handle', root);
-  handle.setAttribute('aria-label', 'show toolbar');
 
   // ---- popovers --------------------------------------------------------------
   let openPopover: HTMLElement | null = null;
@@ -116,7 +119,10 @@ export function mountShell(root: HTMLElement, engine: Engine): void {
     themePopover.innerHTML = '';
     for (const th of themes) {
       const item = el('button', 'popover-item', themePopover);
-      if (th.id === engine.themeId) item.classList.add('active');
+      if (th.id === engine.themeId) {
+        item.classList.add('active');
+        item.setAttribute('aria-current', 'true');
+      }
       const dot = el('span', 'dot', item);
       dot.style.background = `linear-gradient(135deg, ${linearToCss(th.background)} 30%, ${linearToCss(th.accent)} 100%)`;
       const name = el('span', '', item);
@@ -209,13 +215,18 @@ export function mountShell(root: HTMLElement, engine: Engine): void {
     if (!active) return;
     pill.style.width = `${active.offsetWidth}px`;
     pill.style.transform = `translate(${active.offsetLeft}px, -50%)`;
-    for (const [id, b] of tabBtns) b.classList.toggle('active', id === engine.activeModeId);
+    for (const [id, b] of tabBtns) {
+      b.classList.toggle('active', id === engine.activeModeId);
+      b.setAttribute('aria-selected', String(id === engine.activeModeId));
+    }
   }
 
   function updateSwatch(): void {
     const th = themes.find((x) => x.id === engine.themeId) ?? themes[0];
     swatch.style.background = `linear-gradient(135deg, ${linearToCss(th.background)} 25%, ${linearToCss(th.accent)} 100%)`;
-    swatch.title = `${t('theme')} — ${th.name.ja} ${th.name.en}`;
+    const label = `${t('theme')} — ${th.name.ja} ${th.name.en}`;
+    swatch.title = label;
+    swatch.setAttribute('aria-label', label);
   }
 
   // ---- swatch interactions ---------------------------------------------------------
@@ -304,6 +315,9 @@ export function mountShell(root: HTMLElement, engine: Engine): void {
 
   // ---- keyboard --------------------------------------------------------------------
   window.addEventListener('keydown', (e) => {
+    // about.ts installs its own capturing keydown for Esc/Tab while open;
+    // everything else must not reach the shortcuts while the dialog is up.
+    if (about.isOpen()) return;
     if (isEditableTarget(e.target)) return;
     if (e.metaKey || e.ctrlKey || e.altKey) return;
     engine.noteActivity();
@@ -318,6 +332,9 @@ export function mountShell(root: HTMLElement, engine: Engine): void {
       showChip(`${mode.name.ja} ${mode.name.en}`);
       return;
     }
+    // don't steal Space/Enter (and friends) from a focused interactive element —
+    // Space on a focused button must trigger the button, not the global shortcut
+    if (e.target instanceof HTMLElement && e.target.closest('button, a, input, [tabindex]')) return;
     switch (e.key) {
       case ' ':
         e.preventDefault();
@@ -380,6 +397,9 @@ export function mountShell(root: HTMLElement, engine: Engine): void {
     pinnedHidden = false;
     revealBar();
   });
+
+  // keyboard focus landing inside the bar (e.g. mid fade-out) brings it back
+  barWrap.addEventListener('focusin', () => revealBar());
 
   window.addEventListener('pointerdown', (e) => {
     interacted = true;
@@ -490,14 +510,14 @@ export function mountShell(root: HTMLElement, engine: Engine): void {
     fsBtn.title = `${t('fullscreen')} (F)`;
     langBtn.title = `${t('language')} (L)`;
     helpBtn.title = `${t('aboutBtn')} (?)`;
-    swatch.setAttribute('aria-label', t('theme'));
+    handle.setAttribute('aria-label', t('showBar'));
     overflowBtn.title = t('more');
+    updateSwatch(); // swatch title/aria-label embed the theme name
   }
 
   window.addEventListener('resize', () => requestAnimationFrame(updatePill));
 
   refreshTitles();
-  updateSwatch();
   requestAnimationFrame(updatePill);
   if ('fonts' in document) {
     void document.fonts.ready.then(() => updatePill());
