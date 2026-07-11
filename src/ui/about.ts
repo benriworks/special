@@ -23,7 +23,7 @@ export function createAbout(root: HTMLElement, engine: Engine): AboutHandle {
   card.className = 'about-card';
   card.setAttribute('role', 'dialog');
   card.setAttribute('aria-modal', 'true');
-  card.setAttribute('aria-label', 'LUMINA — about');
+  card.setAttribute('aria-label', 'LUMINA — このサイトについて / About');
   scrim.appendChild(card);
   root.appendChild(scrim);
 

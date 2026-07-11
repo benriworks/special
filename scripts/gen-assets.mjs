@@ -62,20 +62,43 @@ function encodePNG(width, height, rgba) {
 // ---------------------------------------------------------------------------
 const BG = [5, 11, 20];        // #050b14
 const ACCENT = [102, 255, 194]; // #66ffc2
+const TEAL = [25, 211, 197];    // #19d3c5
+const VIOLET = [138, 99, 255];  // #8a63ff
 const BRIGHT = [232, 251, 255]; // #e8fbff
 
+/**
+ * App icon: luminous ring + bright core on #050b14, with a small satellite
+ * dot riding the ring (echoes favicon.svg) and a faint violet aurora cast in
+ * the lower-left. All content stays inside the maskable safe zone (r < 0.8).
+ */
 function glowDisc(size) {
   const px = Buffer.alloc(size * size * 4);
   const c = size / 2;
+  const RING_R = 0.55; // ring radius, in units of half-size
+  // satellite sits on the ring at 45° upper-right
+  const sx = c + Math.cos(-Math.PI / 4) * RING_R * c;
+  const sy = c + Math.sin(-Math.PI / 4) * RING_R * c;
   for (let y = 0; y < size; y++) {
     for (let x = 0; x < size; x++) {
-      const d = Math.hypot(x - c, y - c) / (size * 0.5);
-      const glow = Math.exp(-d * d * 5.5);
-      const ring = Math.exp(-(((d - 0.55) / 0.05) ** 2)) * 0.75;
-      const core = Math.exp(-d * d * 60) * 1.2;
+      const dx = x - c;
+      const dy = y - c;
+      const d = Math.hypot(dx, dy) / c;
+      const glow = Math.exp(-d * d * 4.5);                          // ambient accent glow
+      const vio = Math.exp(-(((dx + c * 0.45) ** 2 + (dy - c * 0.45) ** 2) / (0.8 * c) ** 2)); // violet cast, lower-left
+      const ring = Math.exp(-(((d - RING_R) / 0.030) ** 2));        // crisp ring
+      const halo = Math.exp(-(((d - RING_R) / 0.11) ** 2)) * 0.30;  // soft halo around ring
+      const core = Math.exp(-d * d * 40) * 1.25;                    // bright center
+      const sd = Math.hypot(x - sx, y - sy) / c;
+      const sat = Math.exp(-((sd / 0.05) ** 2));                    // satellite dot
+      const satHalo = Math.exp(-((sd / 0.16) ** 2)) * 0.45;
       const o = (y * size + x) * 4;
       for (let i = 0; i < 3; i++) {
-        const v = BG[i] + ACCENT[i] * (glow * 0.75 + ring) + BRIGHT[i] * core;
+        const v =
+          BG[i] +
+          TEAL[i] * glow * 0.30 +
+          VIOLET[i] * vio * 0.22 +
+          ACCENT[i] * (ring * 0.95 + halo + satHalo) +
+          BRIGHT[i] * (core + sat);
         px[o + i] = Math.max(0, Math.min(255, Math.round(v)));
       }
       px[o + 3] = 255;
@@ -149,10 +172,16 @@ function ogImage(width, height) {
 }
 
 // ---------------------------------------------------------------------------
+// `--icons-only` regenerates the PWA icons without touching public/og.png
+// (og.png is replaced by a real screenshot in a later phase).
+const iconsOnly = process.argv.includes('--icons-only');
+
 mkdirSync(resolve(root, 'public/icons'), { recursive: true });
 for (const size of [192, 512]) {
   writeFileSync(resolve(root, `public/icons/icon-${size}.png`), encodePNG(size, size, glowDisc(size)));
   console.log(`wrote public/icons/icon-${size}.png`);
 }
-writeFileSync(resolve(root, 'public/og.png'), encodePNG(1200, 630, ogImage(1200, 630)));
-console.log('wrote public/og.png');
+if (!iconsOnly) {
+  writeFileSync(resolve(root, 'public/og.png'), encodePNG(1200, 630, ogImage(1200, 630)));
+  console.log('wrote public/og.png');
+}

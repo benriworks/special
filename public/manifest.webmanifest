@@ -1,7 +1,7 @@
 {
   "name": "LUMINA — 光の遊び場",
   "short_name": "LUMINA",
-  "description": "Playground of Light — five GPU simulations, zero servers.",
+  "description": "触れて遊ぶ5つのGPUアート世界。ブラウザだけで動く光の遊び場。",
   "start_url": ".",
   "scope": ".",
   "display": "standalone",
