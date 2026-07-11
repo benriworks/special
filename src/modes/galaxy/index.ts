@@ -599,10 +599,9 @@ class GalaxyMode implements Mode {
     const th = ctx.themeMix ? mixThemes(ctx.themeMix.from, ctx.theme, ctx.themeMix.t) : ctx.theme;
 
     // world-space pointer wells: every touch is a gravity well; mouse = one well
+    // (screen→world mapping inlined — no per-frame closures)
     const w2cx = Math.min(1, ctx.height / ctx.width);
     const w2cy = Math.min(1, ctx.width / ctx.height);
-    const toWorldX = (px: number) => ((px / ctx.width) * 2 - 1) / w2cx;
-    const toWorldY = (py: number) => ((py / ctx.height) * 2 - 1) / w2cy;
     let numWells = 0;
     const wells = this.wellBuf;
     wells.fill(0);
@@ -610,21 +609,21 @@ class GalaxyMode implements Mode {
       for (const t of ctx.pointer.touches) {
         if (numWells >= MAX_WELLS) break;
         const o = numWells * 4;
-        wells[o] = toWorldX(t.x);
-        wells[o + 1] = toWorldY(t.y);
+        wells[o] = ((t.x / ctx.width) * 2 - 1) / w2cx;
+        wells[o + 1] = ((t.y / ctx.height) * 2 - 1) / w2cy;
         wells[o + 2] = WELL_G;
         numWells++;
       }
     } else if (ctx.pointer.down) {
-      wells[0] = toWorldX(ctx.pointer.x);
-      wells[1] = toWorldY(ctx.pointer.y);
+      wells[0] = ((ctx.pointer.x / ctx.width) * 2 - 1) / w2cx;
+      wells[1] = ((ctx.pointer.y / ctx.height) * 2 - 1) / w2cy;
       wells[2] = WELL_G;
       numWells = 1;
     }
 
     const pulse = ctx.pulse ? 0.9 : 0;
-    const px = toWorldX(ctx.pointer.x || ctx.width / 2);
-    const py = toWorldY(ctx.pointer.y || ctx.height / 2);
+    const px = (((ctx.pointer.x || ctx.width / 2) / ctx.width) * 2 - 1) / w2cx;
+    const py = (((ctx.pointer.y || ctx.height / 2) / ctx.height) * 2 - 1) / w2cy;
     // desperate mode (stride 8 = software GL) runs the sim at half rate,
     // carrying the skipped dt over; a pulse always simulates immediately
     this.pendingDt = Math.min(0.06, this.pendingDt + ctx.dt);

@@ -55,6 +55,8 @@ export class PointerInput {
 
   private touchMap = new Map<number, TrackedTouch>();
   private twoFingerStart = -1;
+  /** Pooled state.touches entries — reused across frames, no per-frame literals. */
+  private touchPool: PointerState['touches'] = [];
 
   private disposers: (() => void)[] = [];
 
@@ -228,12 +230,21 @@ export class PointerInput {
     s.pressFrames = down ? s.pressFrames + 1 : 0;
     s.down = down;
 
-    s.touches.length = 0;
+    let n = 0;
     for (const t of this.touchMap.values()) {
-      s.touches.push({ id: t.id, x: t.x, y: t.y, dx: t.x - t.px, dy: t.y - t.py });
+      let o = this.touchPool[n];
+      if (!o) { o = { id: 0, x: 0, y: 0, dx: 0, dy: 0 }; this.touchPool[n] = o; }
+      o.id = t.id;
+      o.x = t.x;
+      o.y = t.y;
+      o.dx = t.x - t.px;
+      o.dy = t.y - t.py;
+      s.touches[n] = o;
       t.px = t.x;
       t.py = t.y;
+      n++;
     }
+    s.touches.length = n;
   }
 
   destroy(): void {

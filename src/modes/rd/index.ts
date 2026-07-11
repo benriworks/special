@@ -41,6 +41,7 @@ const DEFAULT_PRESET = 'coral';
 const MAX_SEG = 8;
 const MAX_RING = 4;
 const MAX_TOUCH = 6;
+const BRUSH_R = 0.045;
 
 // ---------------------------------------------------------------------------
 // Shaders
@@ -352,6 +353,7 @@ class RDMode implements Mode {
   private simH = 4;
   private aspect = 1;
   private substepBase = 12;
+  private stepBudget = 0; // fractional substeps carried across frames (per-second stepping)
   private postScale = 0.75;
 
   private preset = DEFAULT_PRESET;
@@ -379,6 +381,9 @@ class RDMode implements Mode {
   private ringAmpBuf = new Float32Array(4);
   private touchBuf = new Float32Array(MAX_TOUCH * 3);
   private ringAlphaBuf = new Float32Array(4);
+  // per-frame gather counters (methods below, not per-frame closures)
+  private segCount = 0;
+  private touchCount = 0;
 
   // -------------------------------------------------------------------------
 
@@ -416,6 +421,7 @@ class RDMode implements Mode {
 
     this.rings.length = 0;
     this.framesSinceInit = 0;
+    this.stepBudget = 0;
     this.lastSplatAt = -100;
     this.lastSprinkleAt = 0;
     this.heatCool = 1e9; // fresh heat texture is zero — nothing to decay yet
@@ -582,6 +588,8 @@ class RDMode implements Mode {
       this.heat?.resize(this.simW, this.simH);
       this.allocPresentTarget(gl);
       this.seedAndPrewarm(gl);
+      // a resize (device rotation) must not eat the user's fresh painting
+      this.replayStrokes(gl);
     }
     this.post?.resize(
       Math.max(1, Math.round(ctx.width * this.postScale)),
@@ -626,6 +634,31 @@ class RDMode implements Mode {
     this.rings.push(r);
   }
 
+  /** Append a stroke segment for this frame's splat/heat passes. */
+  private addSeg(ax: number, ay: number, bx: number, by: number, radius: number, amount: number, record = false): void {
+    if (this.segCount >= MAX_SEG) return;
+    const seg = this.segBuf;
+    const segR = this.segRBuf;
+    seg[this.segCount * 4] = ax; seg[this.segCount * 4 + 1] = ay;
+    seg[this.segCount * 4 + 2] = bx; seg[this.segCount * 4 + 3] = by;
+    segR[this.segCount * 2] = radius; segR[this.segCount * 2 + 1] = amount;
+    this.segCount++;
+    if (record) {
+      // lastTime === ctx.time (set at the top of frame())
+      this.strokeHist.push({ ax, ay, bx, by, r: radius, amt: amount, t: this.lastTime });
+      if (this.strokeHist.length > 96) this.strokeHist.splice(0, this.strokeHist.length - 96);
+    }
+  }
+
+  /** Append a same-frame pointer feedback ring for the present pass. */
+  private addTouchVis(x: number, y: number): void {
+    if (this.touchCount >= MAX_TOUCH) return;
+    this.touchBuf[this.touchCount * 3] = x;
+    this.touchBuf[this.touchCount * 3 + 1] = y;
+    this.touchBuf[this.touchCount * 3 + 2] = BRUSH_R;
+    this.touchCount++;
+  }
+
   // -------------------------------------------------------------------------
 
   frame(ctx: ModeContext): void {
@@ -653,48 +686,37 @@ class RDMode implements Mode {
       const maxR = Math.hypot(Math.max(cx, this.aspect - cx), Math.max(cy, 1 - cy)) * 1.05;
       this.pushRing({ x: cx, y: cy, start: ctx.time, dur: 1.5, maxR, amp: 1.0, width: 0.05 });
     }
-    // expire rings and stale stroke history
-    this.rings = this.rings.filter((r) => ctx.time - r.start < r.dur);
+    // expire rings (in place — no per-frame array/closure) and stale strokes
+    if (this.rings.length > 0) {
+      let w = 0;
+      for (let i = 0; i < this.rings.length; i++) {
+        const r = this.rings[i];
+        if (ctx.time - r.start < r.dur) this.rings[w++] = r;
+      }
+      this.rings.length = w;
+    }
     while (this.strokeHist.length > 0 && ctx.time - this.strokeHist[0].t > 4) this.strokeHist.shift();
 
     // --- gather paint strokes (multitouch; GL-oriented; same-frame) ---------
     const invH = 1 / Math.max(1, ctx.height);
-    const brushR = 0.045;
-    let segCount = 0;
+    this.segCount = 0;
+    this.touchCount = 0;
     const seg = this.segBuf;
     const segR = this.segRBuf;
-    const addSeg = (ax: number, ay: number, bx: number, by: number, radius: number, amount: number, record = false) => {
-      if (segCount >= MAX_SEG) return;
-      seg[segCount * 4] = ax; seg[segCount * 4 + 1] = ay;
-      seg[segCount * 4 + 2] = bx; seg[segCount * 4 + 3] = by;
-      segR[segCount * 2] = radius; segR[segCount * 2 + 1] = amount;
-      segCount++;
-      if (record) {
-        this.strokeHist.push({ ax, ay, bx, by, r: radius, amt: amount, t: ctx.time });
-        if (this.strokeHist.length > 96) this.strokeHist.splice(0, this.strokeHist.length - 96);
-      }
-    };
-    let touchCount = 0;
-    const touch = this.touchBuf;
-    const addTouchVis = (x: number, y: number) => {
-      if (touchCount >= MAX_TOUCH) return;
-      touch[touchCount * 3] = x; touch[touchCount * 3 + 1] = y; touch[touchCount * 3 + 2] = brushR;
-      touchCount++;
-    };
     const pt = ctx.pointer;
     if (pt.touches.length > 0) {
       for (const t of pt.touches) {
         const bx = t.x * invH, by = t.y * invH;
-        addSeg(bx - t.dx * invH, by - t.dy * invH, bx, by, brushR, 1.0, true);
-        addTouchVis(bx, by);
+        this.addSeg(bx - t.dx * invH, by - t.dy * invH, bx, by, BRUSH_R, 1.0, true);
+        this.addTouchVis(bx, by);
       }
     } else if (pt.down) {
       const bx = pt.x * invH, by = pt.y * invH;
-      addSeg(bx - pt.dx * invH, by - pt.dy * invH, bx, by, brushR, 1.0, true);
-      addTouchVis(bx, by);
+      this.addSeg(bx - pt.dx * invH, by - pt.dy * invH, bx, by, BRUSH_R, 1.0, true);
+      this.addTouchVis(bx, by);
     }
-    if (segCount > 0) this.lastSplatAt = ctx.time;
-    const userSegs = segCount; // sprinkles below stay out of the heat trail
+    if (this.segCount > 0) this.lastSplatAt = ctx.time;
+    const userSegs = this.segCount; // sprinkles below stay out of the heat trail
 
     // anti-stagnation: tiny random seeds when nothing has stirred for a while.
     // The excitable waves regime is self-extinguishing by nature, so it gets a
@@ -706,7 +728,7 @@ class RDMode implements Mode {
       this.lastSprinkleAt = ctx.time;
       const x = (0.08 + 0.84 * Math.random()) * this.aspect;
       const y = 0.08 + 0.84 * Math.random();
-      addSeg(x, y, x, y, rains ? 0.028 : 0.02, rains ? 0.9 : 0.8);
+      this.addSeg(x, y, x, y, rains ? 0.028 : 0.02, rains ? 0.9 : 0.8);
     }
 
     // --- splat + heat passes (once per frame, before substeps) ---------------
@@ -724,13 +746,13 @@ class RDMode implements Mode {
       rb[i * 4 + 3] = r.width * (1 + 0.5 * t);
       ra[i] = r.amp * (1 - 0.6 * t);
     }
-    if (segCount > 0 || ringN > 0) {
+    if (this.segCount > 0 || ringN > 0) {
       gl.bindFramebuffer(gl.FRAMEBUFFER, this.sim.write.fbo);
       gl.useProgram(this.splatProg);
       const su = this.splatU;
       su.setTexture('uState', this.sim.read.tex, 0);
       su.set1f('uAspect', this.aspect);
-      su.set1i('uSegCount', segCount);
+      su.set1i('uSegCount', this.segCount);
       gl.uniform4fv(su.loc('uSeg[0]'), seg);
       gl.uniform2fv(su.loc('uSegR[0]'), segR);
       su.set1i('uRingCount', ringN);
@@ -760,7 +782,15 @@ class RDMode implements Mode {
     }
 
     // --- reaction substeps: growth crawls in real time -----------------------
-    const substeps = clamp(Math.round(this.substepBase * this.speed), 1, 24);
+    // budgeted per SECOND, not per frame — 120Hz phones run half the substeps
+    // per frame (same speed, same GPU cost/s as 60fps); 30fps runs double.
+    // At exactly 60fps this yields substepBase*speed steps/frame, unchanged.
+    this.stepBudget += this.substepBase * this.speed * ctx.dt * 60;
+    const maxSub = Math.min(24, this.substepBase * 2);
+    const substeps = Math.min(Math.floor(this.stepBudget), maxSub);
+    // keep the fractional remainder; drop backlog beyond the cap (no long
+    // fast-forward bursts after a hiccup)
+    this.stepBudget = Math.min(this.stepBudget - substeps, 1);
     for (let i = 0; i < substeps; i++) this.stepOnce(gl);
 
     // --- LINEAR copy for smooth presentation gradients -----------------------
@@ -788,8 +818,8 @@ class RDMode implements Mode {
     u.set1f('uKneeLo', Math.max(0.02, 0.16 - half));
     u.set1f('uKneeHi', 0.16 + half);
     u.set1f('uDrift', this.drift);
-    u.set1i('uTouchCount', touchCount);
-    gl.uniform3fv(u.loc('uTouch[0]'), touch);
+    u.set1i('uTouchCount', this.touchCount);
+    gl.uniform3fv(u.loc('uTouch[0]'), this.touchBuf);
     u.set1i('uRingCount', ringN);
     const rv = this.ringBuf;
     const rva = this.ringAlphaBuf;

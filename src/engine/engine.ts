@@ -25,6 +25,9 @@ const DISPLAY_SCALES = [1.0, 0.85, 0.7] as const;
 const MODE_FADE_S = 0.4;
 const THEME_FADE_S = 0.8;
 const PULSE_RING_S = 0.3;
+/** Canvas/viewport track size changes instantly; the (possibly expensive) mode
+ *  rebuild waits until the size has been stable this long. */
+const RESIZE_SETTLE_S = 0.2;
 const TOUCHED_KEY = 'lumina.touched';
 
 const FADE_FS = `#version 300 es
@@ -91,6 +94,8 @@ export class Engine {
   private activeMode: Mode | null = null;
   private pendingSwitchId: string | null = null;
   private pendingReinit = false;
+  /** Engine time at which a deferred activeMode.resize() fires (-1 = none). */
+  private modeResizeAt = -1;
 
   private theme: Theme;
   private themeFrom: Theme | null = null;
@@ -101,6 +106,11 @@ export class Engine {
   private lowTime = 0;
   private highTime = 0;
   private governorHoldUntil = 0;
+  /** Best sustained (EMA) fps since boot — used to detect an rAF cap. */
+  private maxEmaFps = 0;
+  private lastRaiseAt = -1e9;
+  /** Raise followed quickly by a drop → tier raises locked until this time. */
+  private raiseLockUntil = 0;
 
   private pulseQueued = false;
   private ring: { x: number; y: number; start: number } | null = null;
@@ -207,6 +217,7 @@ export class Engine {
 
   destroy(): void {
     this.stopLoop();
+    this.rejectCaptures('engine destroyed');
     this.pointer.destroy();
     const gl = this.gl;
     if (this.activeMode) { try { this.activeMode.destroy(gl); } catch { /* already gone */ } }
@@ -341,6 +352,16 @@ export class Engine {
     this.running = false;
     if (this.rafId) cancelAnimationFrame(this.rafId);
     this.rafId = 0;
+    // queued Save promises must not hang forever once the loop halts
+    this.rejectCaptures('render loop stopped before capture');
+  }
+
+  private rejectCaptures(reason: string): void {
+    if (this.captureResolvers.length === 0) return;
+    const waiting = this.captureResolvers;
+    this.captureResolvers = [];
+    const err = new Error(`captureFrame failed: ${reason}`);
+    for (const w of waiting) w.reject(err);
   }
 
   private loop = (nowMs: number): void => {
@@ -429,6 +450,7 @@ export class Engine {
     const w = Math.max(1, Math.round((this.canvas.clientWidth || 1) * dpr));
     const h = Math.max(1, Math.round((this.canvas.clientHeight || 1) * dpr));
     if (w !== this.canvas.width || h !== this.canvas.height || dpr !== this.ctx.dpr) {
+      // presentation tracks the new size immediately (stays crisp) ...
       this.canvas.width = w;
       this.canvas.height = h;
       this.ctx.width = w;
@@ -436,7 +458,16 @@ export class Engine {
       this.ctx.dpr = dpr;
       this.pointer.setBufferSize(w, h);
       this.gl.viewport(0, 0, w, h);
-      if (this.activeMode && this.pendingSwitchId === null) {
+      // ... but the (potentially expensive) mode rebuild is debounced: a
+      // window-edge drag emits 1-2px deltas every frame, and a per-frame
+      // resize() would reseed heavy sims (RD: hundreds of substeps) each one.
+      this.modeResizeAt = this.time + RESIZE_SETTLE_S;
+    }
+    if (this.modeResizeAt >= 0 && this.time >= this.modeResizeAt) {
+      this.modeResizeAt = -1;
+      // pendingReinit rebuilds the mode at the current ctx dims this very
+      // frame — a resize() first would just double the multi-hundred-ms stall.
+      if (this.activeMode && this.pendingSwitchId === null && !this.pendingReinit) {
         try { this.activeMode.resize(this.ctx); } catch (err) { console.error('[lumina] resize failed:', err); }
       }
     }
@@ -494,6 +525,7 @@ export class Engine {
   private initActive(): void {
     if (!this.activeMode) return;
     const mode = this.activeMode;
+    this.modeResizeAt = -1; // init builds at current ctx dims — absorbs any pending deferred resize
     mode.init(this.ctx); // contract: pre-warmed, frame 1 already alive
     const stored = this.paramState.get(mode.id);
     if (stored && mode.setParam) {
@@ -620,8 +652,22 @@ export class Engine {
     this.emaDt += (rawDt - this.emaDt) * 0.08;
     if (this.time < this.governorHoldUntil || this.pendingSwitchId !== null || this.pendingReinit) return;
     const fps = 1 / this.emaDt;
+    // maxEmaFps only updates past the post-init hold, so the optimistic
+    // 60fps EMA seed never masquerades as a measured 60Hz cap on 30Hz devices.
+    if (fps > this.maxEmaFps) this.maxEmaFps = fps;
 
-    if (fps < 30) {
+    // rAF-cap detection: devices capped below their real capability (e.g. iOS
+    // Low Power Mode pins rAF at 30Hz) hover just under the cap forever — the
+    // raise threshold is then unreachable and every hiccup would one-way
+    // ratchet quality to the floor. If the EMA sits within ~8% of the nearest
+    // standard cap to the best fps ever sustained, the device is delivering
+    // what rAF allows: never demote.
+    const best = this.maxEmaFps;
+    const cap = Math.abs(best - 30) < Math.abs(best - 60) ? 30
+      : Math.abs(best - 60) < Math.abs(best - 120) ? 60 : 120;
+    const atCap = fps >= cap * 0.92;
+
+    if (fps < 27 && !atCap) { // margin below a 30Hz rAF cap
       this.lowTime += rawDt;
       this.highTime = 0;
       // catastrophic fps (software rasterizers, very weak GPUs) descends a
@@ -630,15 +676,19 @@ export class Engine {
       if (this.lowTime > dropAfter && this.tierIndex < QUALITY_TIERS.length - 1) {
         this.tierIndex++;
         this.lowTime = 0;
+        // a raise that immediately re-drops means we're oscillating around a
+        // boundary — lock further raises so it settles at the lower tier.
+        if (this.time - this.lastRaiseAt < 20) this.raiseLockUntil = this.time + 180;
         this.pendingReinit = true; // re-init active mode at lower sim res (display res untouched)
         this.emit('qualitychange', String(QUALITY_TIERS[this.tierIndex]));
       }
     } else if (fps > 55) {
       this.highTime += rawDt;
       this.lowTime = 0;
-      if (this.highTime > 10 && this.tierIndex > 0) {
+      if (this.highTime > 10 && this.tierIndex > 0 && this.time >= this.raiseLockUntil) {
         this.tierIndex--;
         this.highTime = 0;
+        this.lastRaiseAt = this.time;
         this.pendingReinit = true;
         this.emit('qualitychange', String(QUALITY_TIERS[this.tierIndex]));
       }
@@ -777,6 +827,7 @@ export class Engine {
     if (this.activeMode) {
       try { this.activeMode.destroy(gl); } catch { /* stale handles are fine to ignore */ }
       try {
+        this.modeResizeAt = -1; // fresh init absorbs any pending deferred resize
         this.activeMode.init(this.ctx);
         const stored = this.paramState.get(this.activeMode.id);
         if (stored && this.activeMode.setParam) {

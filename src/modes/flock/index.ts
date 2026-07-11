@@ -34,6 +34,14 @@ const PREWARM_TRAIL = 30;    // last N prewarm steps also paint the trail buffer
 const PULSE_LIFE = 2.1;      // seconds the shockwave stays active
 const GHOST_FEAR_CAP = 0.55; // idle waves stay softer than user-driven panic
 
+// Ghost-predator path constants (per ghost: frequencies, phases, lunge period,
+// lunge phase). Static — hoisted so setGhost() allocates nothing per frame.
+const GHOST_PATHS = [
+  [0.117, 1.4, 0.301, 0.8, 0.149, 4.2, 0.257, 2.3, 6.9, 0.55],
+  [0.093, 3.9, 0.271, 2.1, 0.171, 0.7, 0.223, 5.1, 8.6, 0.25],
+  [0.139, 5.5, 0.331, 4.4, 0.127, 2.9, 0.293, 1.2, 5.7, 0.80],
+] as const;
+
 // ---------------------------------------------------------------------------
 // Simulation shader (MRT: pos + vel)
 // ---------------------------------------------------------------------------
@@ -587,14 +595,8 @@ class FlockMode implements Mode {
   /** Three ghost-predator wander paths with staggered lunges; writes ghostData. */
   private setGhost(t: number, weight: number): void {
     const a = this.aspect;
-    // per-ghost path constants: frequencies, phases, lunge periods
-    const C = [
-      [0.117, 1.4, 0.301, 0.8, 0.149, 4.2, 0.257, 2.3, 6.9, 0.55],
-      [0.093, 3.9, 0.271, 2.1, 0.171, 0.7, 0.223, 5.1, 8.6, 0.25],
-      [0.139, 5.5, 0.331, 4.4, 0.127, 2.9, 0.293, 1.2, 5.7, 0.80],
-    ];
     for (let k = 0; k < 3; k++) {
-      const c = C[k];
+      const c = GHOST_PATHS[k];
       const gx = a * (0.5 + 0.34 * Math.sin(t * c[0] + c[1]) + 0.11 * Math.sin(t * c[2] + c[3]));
       const gy = 0.5 + 0.33 * Math.sin(t * c[4] + c[5]) + 0.11 * Math.sin(t * c[6] + c[7]);
       const ph = (((t / c[8]) % 1) + 1) % 1;

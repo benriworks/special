@@ -340,6 +340,13 @@ class MojiMode implements Mode {
   private ptrBuf = new Float32Array(16);
   private ptrStr = new Float32Array(4);
 
+  // next-phrase precomputation (built OFF the word-change frame, in idle time,
+  // so the cycle frame only pays the cheap GPU upload)
+  private spareTargetData: Float32Array | null = null;
+  private preparedNext: { text: string; forIdx: number; nextIdx: number; aspect: number; data: Float32Array } | null = null;
+  private prepareCb = 0;
+  private prepareIsIdle = false;
+
   // sim state
   private aspect = 1;
   private simScale = 0.8;
@@ -408,10 +415,13 @@ class MojiMode implements Mode {
     this.kick = null;
     this.stormMul = 1;
     this.staggerSpan = 1;
+    this.cancelPrepare();
+    this.preparedNext = null; // stale buffer size/aspect after a re-init
 
     // first word (with CJK → Latin fallback), then seed particles ON the word
     this.seedInitialWord(gl);
     this.seedParticles(gl, ctx);
+    this.schedulePrepare(); // build the next phrase's targets in idle time
 
     // frame 1 must already be alive: start mid-reform so the tail of the wave
     // is still sweeping across the word while the left half shimmers in place.
@@ -471,6 +481,9 @@ class MojiMode implements Mode {
     this.perm = null;
     this.targetData = null;
     this.pendingText = null;
+    this.cancelPrepare();
+    this.preparedNext = null;
+    this.spareTargetData = null;
   }
 
   // -------------------------------------------------------------------------
@@ -662,6 +675,22 @@ class MojiMode implements Mode {
   }
 
   private advancePhrase(gl: WebGL2RenderingContext, ctx: ModeContext): void {
+    // fast path: targets were precomputed in idle time — the cycle frame only
+    // pays the texSubImage upload, no 2D readback / pixel scan hitch.
+    const prep = this.preparedNext;
+    this.preparedNext = null;
+    if (prep && prep.forIdx === this.phraseIdx && prep.aspect === this.aspect) {
+      const spare = this.targetData;
+      this.targetData = prep.data;
+      this.spareTargetData = spare;
+      this.uploadTargets(gl);
+      this.currentText = prep.text;
+      this.phraseIdx = prep.nextIdx;
+      this.startTransition(ctx, 'cycle');
+      this.schedulePrepare();
+      return;
+    }
+    // synchronous fallback (first cycle, or the prepared data went stale)
     for (let tries = 0; tries < PHRASES.length; tries++) {
       this.phraseIdx = (this.phraseIdx + 1) % PHRASES.length;
       const p = PHRASES[this.phraseIdx];
@@ -669,11 +698,64 @@ class MojiMode implements Mode {
       this.shufflePerm(hashString(p) ^ (this.phraseIdx * 2654435761));
       if (this.applyText(gl, p)) {
         this.startTransition(ctx, 'cycle');
+        this.schedulePrepare();
         return;
       }
       if (CJK_RE.test(p)) this.cjkBroken = true; // fall through to next (Latin) phrase
     }
     // nothing rasterized (fontless container) — keep the current word alive
+  }
+
+  /** Queue prepareNextPhrase off the render loop (idle callback, timer fallback). */
+  private schedulePrepare(): void {
+    this.cancelPrepare();
+    const run = (): void => {
+      this.prepareCb = 0;
+      this.prepareNextPhrase();
+    };
+    const w = window as Window & {
+      requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;
+    };
+    if (typeof w.requestIdleCallback === 'function') {
+      this.prepareIsIdle = true;
+      this.prepareCb = w.requestIdleCallback(run, { timeout: 3000 });
+    } else {
+      this.prepareIsIdle = false;
+      this.prepareCb = window.setTimeout(run, 600); // after the transition settles
+    }
+  }
+
+  private cancelPrepare(): void {
+    if (!this.prepareCb) return;
+    const w = window as Window & { cancelIdleCallback?: (handle: number) => void };
+    if (this.prepareIsIdle && typeof w.cancelIdleCallback === 'function') w.cancelIdleCallback(this.prepareCb);
+    else if (!this.prepareIsIdle) window.clearTimeout(this.prepareCb);
+    this.prepareCb = 0;
+  }
+
+  /** Rasterize + validate + build the NEXT phrase's target data (CPU only). */
+  private prepareNextPhrase(): void {
+    this.preparedNext = null;
+    if (this.customText !== '' || !this.c2 || !this.perm) return;
+    const forIdx = this.phraseIdx;
+    let idx = forIdx;
+    for (let tries = 0; tries < PHRASES.length; tries++) {
+      idx = (idx + 1) % PHRASES.length;
+      const p = PHRASES[idx];
+      if (this.cjkBroken && CJK_RE.test(p)) continue;
+      const stats = this.rasterizeText(p);
+      if (!stats || (CJK_RE.test(p) && stats.density < 0.09)) { // same tofu heuristic as applyText
+        if (CJK_RE.test(p)) this.cjkBroken = true;
+        continue;
+      }
+      this.shufflePerm(hashString(p) ^ (idx * 2654435761));
+      if (!this.spareTargetData || this.spareTargetData.length !== this.count * 4) {
+        this.spareTargetData = new Float32Array(this.count * 4);
+      }
+      this.buildTargets(stats, hashString(p), this.spareTargetData);
+      this.preparedNext = { text: p, forIdx, nextIdx: idx, aspect: this.aspect, data: this.spareTargetData };
+      return;
+    }
   }
 
   private seedInitialWord(gl: WebGL2RenderingContext): void {
@@ -755,20 +837,40 @@ class MojiMode implements Mode {
     )));
     c2.font = `900 ${fs}px ${FONT_STACK}`;
     c2.fillText(text, RASTER_W / 2, RASTER_H / 2);
-    return this.scanCanvas();
+    // scan only the glyph bounding box (final-font metrics, padded, clamped)
+    // instead of the whole 2048×1024 canvas — the readback + scan is the
+    // dominant cost of a word change on mid/low phones.
+    const m2 = c2.measureText(text);
+    let rx0 = 0; let ry0 = 0; let rx1 = RASTER_W; let ry1 = RASTER_H;
+    const bl = m2.actualBoundingBoxLeft; const br = m2.actualBoundingBoxRight;
+    const ba = m2.actualBoundingBoxAscent; const bd = m2.actualBoundingBoxDescent;
+    if (Number.isFinite(bl) && Number.isFinite(br) && Number.isFinite(ba) && Number.isFinite(bd)
+      && bl + br > 0 && ba + bd > 0) {
+      const pad = 8; // antialiasing fringe safety
+      rx0 = Math.max(0, Math.floor(RASTER_W / 2 - bl - pad));
+      rx1 = Math.min(RASTER_W, Math.ceil(RASTER_W / 2 + br + pad));
+      ry0 = Math.max(0, Math.floor(RASTER_H / 2 - ba - pad));
+      ry1 = Math.min(RASTER_H, Math.ceil(RASTER_H / 2 + bd + pad));
+      if (rx1 - rx0 < 2 || ry1 - ry0 < 2) { rx0 = 0; ry0 = 0; rx1 = RASTER_W; ry1 = RASTER_H; }
+    }
+    return this.scanCanvas(rx0, ry0, rx1 - rx0, ry1 - ry0);
   }
 
-  /** Collect all pixels with alpha > 0.5 into this.pixels; null if too few. */
-  private scanCanvas(): RasterStats | null {
+  /**
+   * Collect all pixels with alpha > 0.5 inside the given canvas region into
+   * this.pixels (absolute canvas coords); null if too few. Defaults to the
+   * full canvas (dot-matrix path).
+   */
+  private scanCanvas(rx = 0, ry = 0, rw = RASTER_W, rh = RASTER_H): RasterStats | null {
     const c2 = this.c2;
     if (!c2) return null;
-    const img = c2.getImageData(0, 0, RASTER_W, RASTER_H);
+    const img = c2.getImageData(rx, ry, rw, rh);
     const a = img.data; // RGBA bytes; alpha at stride-4 offset 3
     let count = 0;
-    let minX = RASTER_W; let maxX = 0; let minY = RASTER_H; let maxY = 0;
-    for (let y = 0; y < RASTER_H; y++) {
-      const row = y * RASTER_W;
-      for (let x = 0; x < RASTER_W; x++) {
+    let minX = rw; let maxX = -1; let minY = rh; let maxY = -1;
+    for (let y = 0; y < rh; y++) {
+      const row = y * rw;
+      for (let x = 0; x < rw; x++) {
         if (a[(row + x) * 4 + 3] > 127) {
           count++;
           if (x < minX) minX = x;
@@ -785,13 +887,13 @@ class MojiMode implements Mode {
     const pix = this.pixels;
     let w = 0;
     for (let y = minY; y <= maxY; y++) {
-      const row = y * RASTER_W;
+      const row = y * rw;
       for (let x = minX; x <= maxX; x++) {
-        if (a[(row + x) * 4 + 3] > 127) { pix[w++] = x; pix[w++] = y; }
+        if (a[(row + x) * 4 + 3] > 127) { pix[w++] = rx + x; pix[w++] = ry + y; }
       }
     }
     const density = count / ((maxX - minX + 1) * (maxY - minY + 1));
-    return { count, minX, maxX, minY, maxY, density };
+    return { count, minX: rx + minX, maxX: rx + maxX, minY: ry + minY, maxY: ry + maxY, density };
   }
 
   /**
@@ -799,9 +901,9 @@ class MojiMode implements Mode {
    * through the shuffled permutation; the rest halo the word on an ellipse.
    * Layout: rg = target pos, b = colorT (+2 flags ambient), a = stagger.
    */
-  private buildTargets(res: RasterStats, wordSeed: number): void {
+  private buildTargets(res: RasterStats, wordSeed: number, out?: Float32Array): void {
     const N = this.count;
-    const data = this.targetData!;
+    const data = out ?? this.targetData!;
     const perm = this.perm!;
     const pix = this.pixels!;
     const rng = mulberry32(wordSeed ^ 0x9e3779b9);
