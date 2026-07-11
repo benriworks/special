@@ -7,9 +7,6 @@
 
 import { t } from '../core/i18n';
 
-/** True when OES_texture_float_linear is available (linear filtering of 32F textures). */
-export let hasFloatLinear = false;
-
 export interface GLHandle {
   gl: WebGL2RenderingContext;
   canvas: HTMLCanvasElement;
@@ -36,10 +33,10 @@ function showFallback(): void {
   title.textContent = 'LUMINA';
   const ja = document.createElement('p');
   ja.style.cssText = 'margin:0;font-size:15px;line-height:1.7';
-  ja.textContent = t('webglFallbackJa');
+  ja.textContent = t('webglFallback', 'ja');
   const en = document.createElement('p');
   en.style.cssText = 'margin:0;font-size:14px;line-height:1.6;color:rgba(255,255,255,.55)';
-  en.textContent = t('webglFallbackEn');
+  en.textContent = t('webglFallback', 'en');
   el.append(title, ja, en);
   document.body.appendChild(el);
 }
@@ -69,7 +66,7 @@ export function createGL(canvas: HTMLCanvasElement): GLHandle | null {
     return null;
   }
 
-  hasFloatLinear = gl.getExtension('OES_texture_float_linear') !== null;
+  gl.getExtension('OES_texture_float_linear'); // enable if present (linear filtering of 32F textures)
 
   const handle: GLHandle = { gl, canvas, onContextRestored: null, onContextLost: null, contextLost: false };
 
@@ -80,7 +77,7 @@ export function createGL(canvas: HTMLCanvasElement): GLHandle | null {
   });
   canvas.addEventListener('webglcontextrestored', () => {
     handle.contextLost = false;
-    hasFloatLinear = gl.getExtension('OES_texture_float_linear') !== null;
+    gl.getExtension('OES_texture_float_linear');
     gl.getExtension('EXT_color_buffer_float');
     handle.onContextRestored?.();
   });

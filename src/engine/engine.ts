@@ -13,6 +13,15 @@ import {
 import { DEFAULT_THEME_ID, getTheme, linearToCss, mixThemes, themes } from '../core/themes';
 
 const QUALITY_TIERS = [1.0, 0.7, 0.45] as const;
+/**
+ * Drawing-buffer scale per quality tier. Sim-resolution tiers alone can't save
+ * a software rasterizer: display-resolution passes (post composite, trails,
+ * present) dominate once sims are cheap. Lower tiers therefore also shrink the
+ * drawing buffer itself — CSS size is untouched, the browser upscales, so this
+ * is a soft dynamic-resolution drop rather than a layout change. Modes see it
+ * only through ctx.width/height/dpr, which already flow through init/resize.
+ */
+const DISPLAY_SCALES = [1.0, 0.85, 0.7] as const;
 const MODE_FADE_S = 0.4;
 const THEME_FADE_S = 0.8;
 const PULSE_RING_S = 0.3;
@@ -117,6 +126,9 @@ export class Engine {
   private statLuma = 0;
   private statVariance = 0;
   private statPixels: Uint8Array | null = null;
+  private statBuf: WebGLBuffer | null = null;
+  private statFence: WebGLSync | null = null;
+  private statSize = 0;
 
   private rafId = 0;
   private running = false;
@@ -202,6 +214,10 @@ export class Engine {
     if (this.fadeTex) gl.deleteTexture(this.fadeTex);
     if (this.fadeProg) gl.deleteProgram(this.fadeProg);
     if (this.ringProg) gl.deleteProgram(this.ringProg);
+    if (this.statFence) gl.deleteSync(this.statFence);
+    if (this.statBuf) gl.deleteBuffer(this.statBuf);
+    this.statFence = null;
+    this.statBuf = null;
   }
 
   get activeModeId(): string {
@@ -409,7 +425,7 @@ export class Engine {
   };
 
   private resizeIfNeeded(): void {
-    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const dpr = Math.min(2, window.devicePixelRatio || 1) * DISPLAY_SCALES[this.tierIndex];
     const w = Math.max(1, Math.round((this.canvas.clientWidth || 1) * dpr));
     const h = Math.max(1, Math.round((this.canvas.clientHeight || 1) * dpr));
     if (w !== this.canvas.width || h !== this.canvas.height || dpr !== this.ctx.dpr) {
@@ -502,6 +518,11 @@ export class Engine {
       this.fadeTex = gl.createTexture();
       this.fadeSize = [w, h];
       gl.bindTexture(gl.TEXTURE_2D, this.fadeTex);
+      // The default framebuffer is alpha:false → its color format is RGB, and
+      // WebGL2 forbids RGBA copies from an RGB source (GL_INVALID_OPERATION).
+      // Allocate immutable RGB8 storage once per size; the copy below is then
+      // an always-legal RGB←RGB (or RGB←RGBA) transfer.
+      gl.texStorage2D(gl.TEXTURE_2D, 1, gl.RGB8, w, h);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
@@ -510,7 +531,7 @@ export class Engine {
       gl.bindTexture(gl.TEXTURE_2D, this.fadeTex);
     }
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-    gl.copyTexImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 0, 0, w, h, 0);
+    gl.copyTexSubImage2D(gl.TEXTURE_2D, 0, 0, 0, 0, 0, w, h);
     gl.bindTexture(gl.TEXTURE_2D, null);
   }
 
@@ -596,14 +617,17 @@ export class Engine {
   // -------------------------------------------------------------------------
 
   private updateGovernor(rawDt: number): void {
-    this.emaDt += (rawDt - this.emaDt) * 0.05;
+    this.emaDt += (rawDt - this.emaDt) * 0.08;
     if (this.time < this.governorHoldUntil || this.pendingSwitchId !== null || this.pendingReinit) return;
     const fps = 1 / this.emaDt;
 
     if (fps < 30) {
       this.lowTime += rawDt;
       this.highTime = 0;
-      if (this.lowTime > 2 && this.tierIndex < QUALITY_TIERS.length - 1) {
+      // catastrophic fps (software rasterizers, very weak GPUs) descends a
+      // tier per second instead of per two — reach a usable rate quickly.
+      const dropAfter = fps < 18 ? 1 : 2;
+      if (this.lowTime > dropAfter && this.tierIndex < QUALITY_TIERS.length - 1) {
         this.tierIndex++;
         this.lowTime = 0;
         this.pendingReinit = true; // re-init active mode at lower sim res (display res untouched)
@@ -681,32 +705,56 @@ export class Engine {
   // Debug stats
   // -------------------------------------------------------------------------
 
+  /**
+   * Async luma/variance sampling: readPixels goes into a PIXEL_PACK buffer and
+   * is harvested a later frame once its fence signals. A synchronous readback
+   * here would stall the GPU every 5 frames (ANGLE logs "GPU stall due to
+   * ReadPixels" driver warnings); stats may lag a few frames, which the
+   * verify harness tolerates.
+   */
   private sampleStats(): void {
     const gl = this.gl;
+
+    if (this.statFence) {
+      const status = gl.clientWaitSync(this.statFence, 0, 0);
+      if (status !== gl.CONDITION_SATISFIED && status !== gl.ALREADY_SIGNALED) return; // not ready — retry next sample
+      gl.deleteSync(this.statFence);
+      this.statFence = null;
+      const count = this.statSize * this.statSize;
+      if (!this.statPixels || this.statPixels.length !== count * 4) {
+        this.statPixels = new Uint8Array(count * 4);
+      }
+      gl.bindBuffer(gl.PIXEL_PACK_BUFFER, this.statBuf);
+      gl.getBufferSubData(gl.PIXEL_PACK_BUFFER, 0, this.statPixels);
+      gl.bindBuffer(gl.PIXEL_PACK_BUFFER, null);
+      const px = this.statPixels;
+      let sum = 0;
+      let sumSq = 0;
+      for (let i = 0; i < count; i++) {
+        const o = i * 4;
+        const l = (0.2126 * px[o] + 0.7152 * px[o + 1] + 0.0722 * px[o + 2]) / 255;
+        sum += l;
+        sumSq += l * l;
+      }
+      const mean = sum / count;
+      this.statLuma = mean;
+      this.statVariance = Math.max(0, sumSq / count - mean * mean);
+    }
+
     const w = this.ctx.width;
     const h = this.ctx.height;
     const size = Math.min(64, w, h);
     if (size < 2) return;
     const x0 = Math.max(0, (w - size) >> 1);
     const y0 = Math.max(0, (h - size) >> 1);
-    const count = size * size;
-    if (!this.statPixels || this.statPixels.length !== count * 4) {
-      this.statPixels = new Uint8Array(count * 4);
-    }
+    this.statSize = size;
+    if (!this.statBuf) this.statBuf = gl.createBuffer();
+    gl.bindBuffer(gl.PIXEL_PACK_BUFFER, this.statBuf);
+    gl.bufferData(gl.PIXEL_PACK_BUFFER, size * size * 4, gl.STREAM_READ);
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-    gl.readPixels(x0, y0, size, size, gl.RGBA, gl.UNSIGNED_BYTE, this.statPixels);
-    const px = this.statPixels;
-    let sum = 0;
-    let sumSq = 0;
-    for (let i = 0; i < count; i++) {
-      const o = i * 4;
-      const l = (0.2126 * px[o] + 0.7152 * px[o + 1] + 0.0722 * px[o + 2]) / 255;
-      sum += l;
-      sumSq += l * l;
-    }
-    const mean = sum / count;
-    this.statLuma = mean;
-    this.statVariance = Math.max(0, sumSq / count - mean * mean);
+    gl.readPixels(x0, y0, size, size, gl.RGBA, gl.UNSIGNED_BYTE, 0);
+    gl.bindBuffer(gl.PIXEL_PACK_BUFFER, null);
+    this.statFence = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
   }
 
   // -------------------------------------------------------------------------
@@ -720,6 +768,8 @@ export class Engine {
     this.fadeSize = [0, 0];
     this.fadeStart = -1;
     this.ring = null;
+    this.statBuf = null;
+    this.statFence = null;
     try { this.createOverlayResources(); } catch (err) {
       console.error('[lumina] failed to rebuild overlay resources after context restore:', err);
       return;

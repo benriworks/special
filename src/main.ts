@@ -17,6 +17,9 @@ declare global {
       ready: Promise<void>;
       stats: () => { fps: number; frame: number; modeId: string; luma: number; variance: number };
       setMode: (id: string) => void;
+      themeId: () => string;
+      quality: () => number;
+      params: (id?: string) => Record<string, number | string>;
     };
   }
 }
@@ -77,6 +80,9 @@ function boot(): void {
       ready: engine.ready,
       stats: () => engine.getStats(),
       setMode: (id: string) => engine.switchMode(id),
+      themeId: () => engine.themeId,
+      quality: () => engine.quality,
+      params: (id?: string) => engine.getParamValues(id ?? engine.activeModeId),
     };
   }
 }
