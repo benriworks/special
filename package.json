@@ -1,0 +1,18 @@
+{
+  "name": "lumina",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "LUMINA — 光の遊び場 | zero-backend GPU generative-art playground",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --port 4173 --strictPort",
+    "verify": "node scripts/verify.mjs"
+  },
+  "devDependencies": {
+    "playwright": "1.56.1",
+    "typescript": "~5.9",
+    "vite": "^7"
+  }
+}
