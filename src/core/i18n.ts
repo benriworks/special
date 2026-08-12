@@ -77,6 +77,7 @@ const STRINGS: Record<string, { ja: string; en: string }> = {
   modeDesc_drift: { ja: '星の海を、ただよう', en: 'Adrift in a sea of stars' },
   modeDesc_gravity: { ja: '光さえ、曲がって落ちる', en: 'Where even light bends and falls' },
   modeDesc_tesseract: { ja: '過ぎた瞬間が、光の棚に並ぶ', en: 'Your moments, shelved in light' },
+  modeDesc_premiere: { ja: '光の劇場が、あなたの記憶を上映する', en: 'A theater of light, premiering your memories' },
 
   aboutFooterRuns: { ja: 'ブラウザ内で100%動作', en: 'runs 100% in your browser' },
   aboutFooterLicense: { ja: 'MITライセンス', en: 'MIT License' },
