@@ -4,8 +4,9 @@
  * frame capture and the debug hook backing store.
  */
 
-import type { Mode, ModeContext, Theme } from './types';
+import type { AudioLevels, Mode, ModeContext, Theme } from './types';
 import type { GLHandle } from './gl';
+import { AudioInput } from '../core/audio';
 import { PointerInput } from './pointer';
 import {
   FS_TRIANGLE_VS, compileProgram, drawFullscreen, invalidateGLCaches, UniformSetter,
@@ -54,7 +55,7 @@ void main() {
 }
 `;
 
-export type EngineEvent = 'modechange' | 'themechange' | 'qualitychange';
+export type EngineEvent = 'modechange' | 'themechange' | 'qualitychange' | 'audiochange';
 
 export interface EngineOptions {
   initialModeId?: string;
@@ -77,6 +78,8 @@ export interface EngineStats {
   modeId: string;
   luma: number;
   variance: number;
+  /** Snapshot of the current mic levels; null while audio is off. */
+  audio: AudioLevels | null;
 }
 
 export class Engine {
@@ -114,6 +117,9 @@ export class Engine {
 
   private pulseQueued = false;
   private ring: { x: number; y: number; start: number } | null = null;
+
+  private audioIn: AudioInput | null = null;
+  private audioOn = false; // emitted state — dedupes 'audiochange'
 
   private fadeTex: WebGLTexture | null = null;
   private fadeSize: [number, number] = [0, 0];
@@ -195,7 +201,10 @@ export class Engine {
 
     this.createOverlayResources();
 
-    handle.onContextLost = () => this.stopLoop();
+    handle.onContextLost = () => {
+      this.disableAudio(); // mic must not stay hot while GL is gone
+      this.stopLoop();
+    };
     handle.onContextRestored = () => this.handleContextRestored();
 
     const initial = opts.initialModeId && modes.some((m) => m.id === opts.initialModeId)
@@ -216,6 +225,7 @@ export class Engine {
   }
 
   destroy(): void {
+    this.disableAudio();
     this.stopLoop();
     this.rejectCaptures('engine destroyed');
     this.pointer.destroy();
@@ -290,6 +300,38 @@ export class Engine {
     this.pulseQueued = true;
   }
 
+  // -------------------------------------------------------------------------
+  // Microphone audio reactivity
+  // -------------------------------------------------------------------------
+
+  /**
+   * Ask for the mic and start feeding ctx.audio (sampled once per frame,
+   * before mode.frame). Rejects with the original getUserMedia error on
+   * permission denial — the caller decides the UI. Idempotent while running.
+   */
+  async enableAudio(): Promise<void> {
+    if (!this.audioIn) this.audioIn = new AudioInput();
+    await this.audioIn.start();
+    if (!this.audioOn && this.audioIn.running) {
+      this.audioOn = true;
+      this.emit('audiochange', 'on');
+    }
+  }
+
+  /** Release the mic; ctx.audio returns to null immediately. */
+  disableAudio(): void {
+    this.audioIn?.stop();
+    this.ctx.audio = null;
+    if (this.audioOn) {
+      this.audioOn = false;
+      this.emit('audiochange', 'off');
+    }
+  }
+
+  get audioEnabled(): boolean {
+    return this.audioIn !== null && this.audioIn.running;
+  }
+
   /** Set a param on the active mode (persisted across re-inits). */
   setModeParam(key: string, value: number | string): void {
     const id = this.activeModeId;
@@ -333,12 +375,14 @@ export class Engine {
   }
 
   getStats(): EngineStats {
+    const a = this.ctx.audio;
     return {
       fps: this.emaDt > 0 ? 1 / this.emaDt : 0,
       frame: this.frame,
       modeId: this.activeMode?.id ?? '',
       luma: this.statLuma,
       variance: this.statVariance,
+      audio: a ? { level: a.level, low: a.low, mid: a.mid, high: a.high } : null,
     };
   }
 
@@ -400,6 +444,10 @@ export class Engine {
       this.ring = { x: ctx.pointer.x || ctx.width / 2, y: ctx.pointer.y || ctx.height / 2, start: this.time };
       this.pulseQueued = false;
     }
+
+    // mic levels: one sample per frame, before mode.frame — sample() mutates
+    // and returns the same AudioLevels object (no per-frame allocation)
+    ctx.audio = this.audioIn !== null && this.audioIn.running ? this.audioIn.sample() : null;
 
     try {
       if (this.pendingSwitchId !== null) {

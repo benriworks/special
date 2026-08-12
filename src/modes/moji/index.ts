@@ -36,6 +36,7 @@ import {
   FS_TRIANGLE_VS, PingPong, compileProgram, drawFullscreen, makeTexture, UniformSetter,
 } from '../../engine/glutils';
 import { createPost, type Post } from '../../engine/post';
+import { BeatDetector } from '../../core/audio';
 import { mixThemes } from '../../core/themes';
 
 // ---------------------------------------------------------------------------
@@ -89,6 +90,7 @@ uniform vec4  uPtrStr;       // per-pointer scatter strength
 uniform int   uPtrCount;
 uniform float uTurb;         // 乱れ param
 uniform float uReturn;       // 集まる速さ param
+uniform float uAudioWobble;  // music breathing amplitude (1.0 = neutral/off)
 out vec4 outPV;
 
 float hash12(vec2 p) {
@@ -142,8 +144,8 @@ void main() {
 
   // micro target orbit — settled particles NEVER fully stop
   float ph = seed * 6.2831853;
-  target += 0.0035 * vec2(sin(uTime * (0.8 + seed * 0.9) + ph),
-                          cos(uTime * (1.1 + seed * 0.6) + ph * 1.7));
+  target += 0.0035 * uAudioWobble * vec2(sin(uTime * (0.8 + seed * 0.9) + ph),
+                                         cos(uTime * (1.1 + seed * 0.6) + ph * 1.7));
 
   // choreography envelope: 0 = free curl storm, 1 = fully sprung to target.
   // stagger keyed to target x => the reform sweeps across the word like a wave.
@@ -221,6 +223,7 @@ uniform vec2  uBounds;
 uniform float uTime;
 uniform float uPtSize;
 uniform float uGain;
+uniform float uAudioSparkle; // widens the twinkle window (0.0 = neutral/off)
 uniform vec3  uColors[6];
 uniform int   uNumColors;
 out vec3 vColor;
@@ -245,10 +248,11 @@ void main() {
   float colorT = tg.b - 2.0 * ambient;
   float seed = hash12(vec2(tc) + 0.517);
 
-  // occasional sparkle twinkle in the brightest palette color
+  // occasional sparkle twinkle in the brightest palette color (music widens
+  // the window: rate ×(1 + 2·high); uAudioSparkle 0.0 → exactly the old rate)
   float slot = floor(uTime * 1.5 + seed * 97.0);
   float tw = hash12(vec2(seed * 511.7, slot));
-  float sp = step(0.982, tw) * sin(3.14159265 * fract(uTime * 1.5 + seed * 97.0));
+  float sp = step(0.982 - uAudioSparkle, tw) * sin(3.14159265 * fract(uTime * 1.5 + seed * 97.0));
 
   float speed = length(pv.zw);
   vec3 bright = uColors[uNumColors - 1];
@@ -358,6 +362,11 @@ class MojiMode implements Mode {
   private turbulence = 1;
   private returnSpeed = 1;
 
+  // audio reactivity (wobble ×1 / sparkle +0 / no kick when ctx.audio === null)
+  private beatStrong = new BeatDetector(1.6, 0.14, 0.45);
+  private aWobble = 1;
+  private aSparkle = 0;
+
   // text state
   private currentText = '';
   private customText = '';
@@ -415,6 +424,8 @@ class MojiMode implements Mode {
     this.kick = null;
     this.stormMul = 1;
     this.staggerSpan = 1;
+    this.aWobble = 1;
+    this.aSparkle = 0;
     this.cancelPrepare();
     this.preparedNext = null; // stale buffer size/aspect after a re-init
 
@@ -526,6 +537,16 @@ class MojiMode implements Mode {
       this.nextCycleAt = ctx.time + CYCLE_S;
     }
 
+    // audio: sparkle rate rides the highs, breathing rides the level, and a
+    // strong beat gives a gentle one-frame kick (reused turbulence machinery,
+    // low amplitude — never clobbers a pulse kick). Null audio → all neutral.
+    const au = ctx.audio;
+    this.aWobble = au ? 1 + 0.5 * au.level : 1;
+    this.aSparkle = au ? 0.036 * au.high : 0;
+    if (au !== null && this.beatStrong.update(au.low, ctx.time, ctx.dt) && !this.kick) {
+      this.kick = { x: 0, y: 0.02, s: 0.05 + 0.05 * au.low };
+    }
+
     const th = ctx.themeMix ? mixThemes(ctx.themeMix.from, ctx.theme, ctx.themeMix.t) : ctx.theme;
 
     // --- simulate (float ping-pong, blending off) ---
@@ -546,6 +567,7 @@ class MojiMode implements Mode {
     const sceneH = Math.max(1, Math.round(ctx.height * this.simScale));
     u.set1f('uPtSize', Math.min(3.2, Math.max(1.2, sceneH * 0.0045)));
     u.set1f('uGain', this.gain);
+    u.set1f('uAudioSparkle', this.aSparkle);
     const n = Math.min(6, th.colors.length);
     for (let i = 0; i < 6; i++) this.colorBuf.set(th.colors[Math.min(i, n - 1)], i * 3);
     u.set3fv('uColors[0]', this.colorBuf);
@@ -586,6 +608,7 @@ class MojiMode implements Mode {
     u.set2f('uBounds', this.aspect * 0.5, 0.5);
     u.set1f('uTurb', this.turbulence);
     u.set1f('uReturn', this.returnSpeed);
+    u.set1f('uAudioWobble', this.aWobble);
 
     if (this.kick) {
       u.set1f('uKick', this.kick.s);

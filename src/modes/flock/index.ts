@@ -22,6 +22,7 @@ import {
   FS_TRIANGLE_VS, PingPong, UniformSetter, compileProgram, drawFullscreen, makeTexture,
 } from '../../engine/glutils';
 import { createPost, type Post } from '../../engine/post';
+import { BeatDetector } from '../../core/audio';
 import { mixThemes } from '../../core/themes';
 import type { Theme } from '../../engine/types';
 
@@ -69,6 +70,7 @@ uniform float uFearGain;        // 恐れ param
 uniform vec4 uPred[4];          // xy world, z: 0 beacon / 1 predator, w weight (0 = off)
 uniform vec4 uGhost[3];         // xy world, z strength, w fear cap
 uniform vec4 uPulse;            // xy world, z age, w active
+uniform float uAudioSpeed;      // music max-speed lift (1.0 = neutral/off)
 
 layout(location = 0) out vec4 oPos;
 layout(location = 1) out vec4 oVel;
@@ -228,7 +230,7 @@ void main() {
   // integrate with min/max speed clamps — everything always flies
   vel += acc * uDt;
   float ns = length(vel) + 1e-6;
-  float vMax = 0.34 * pref * (1.0 + 1.0 * min(fear, 1.25));
+  float vMax = 0.34 * pref * (1.0 + 1.0 * min(fear, 1.25)) * uAudioSpeed;
   vel *= clamp(ns, 0.16 * pref, vMax) / ns;
   pos += vel * uDt;
 
@@ -421,6 +423,14 @@ class FlockMode implements Mode {
   private pulseData = new Float32Array(4);
   private colorBuf = new Float32Array(18);
 
+  // audio reactivity (neutral when ctx.audio === null: mul 1, spot inactive)
+  private beat = new BeatDetector();
+  private aSpeedMul = 1;
+  private beatAt = -1e3;
+  private beatX = 0.5;
+  private beatY = 0.5;
+  private beatW = 0;
+
   // -------------------------------------------------------------------------
 
   init(ctx: ModeContext): void {
@@ -461,6 +471,8 @@ class FlockMode implements Mode {
     this.lastScaleDrop = 0;
     this.predData.fill(0);
     this.pulseData.fill(0);
+    this.aSpeedMul = 1;
+    this.beatAt = -1e3;
 
     // pre-warm: frame 1 must already show structured sub-flocks mid-flight,
     // ribbons included. Phase 1 is timed — a software rasterizer reveals
@@ -634,6 +646,7 @@ class FlockMode implements Mode {
     u.set1f('uExpect', expect);
     u.set1f('uCohGain', this.pCoh);
     u.set1f('uFearGain', this.pFear);
+    u.set1f('uAudioSpeed', this.aSpeedMul);
     u.set4fv('uPred[0]', this.predData);
     u.set4fv('uGhost[0]', this.ghostData);
     this.gl!.uniform4f(u.loc('uPulse'), this.pulseData[0], this.pulseData[1], this.pulseData[2], this.pulseData[3]);
@@ -764,6 +777,30 @@ class FlockMode implements Mode {
         this.predData[1] = pt.y * px2w;
         this.predData[2] = 0;
         this.predData[3] = w;
+      }
+    }
+
+    // audio: max-speed lift with level; a bass attack drops a brief fear spot
+    // in the central roost area — the murmuration flinches on the beat.
+    // (ctx.audio === null → aSpeedMul 1, beatAt stale → predData untouched)
+    const au = ctx.audio;
+    this.aSpeedMul = au ? 1 + 0.3 * au.level : 1;
+    if (au !== null && this.beat.update(au.low, ctx.time, ctx.dt)) {
+      this.beatAt = ctx.time;
+      this.beatX = this.aspect * (0.25 + 0.5 * Math.random());
+      this.beatY = 0.25 + 0.5 * Math.random();
+      this.beatW = 0.4 + 0.3 * au.low;
+    }
+    const beatAge = ctx.time - this.beatAt;
+    if (beatAge >= 0 && beatAge < 0.15) {
+      for (let k = 0; k < 4; k++) {
+        if (this.predData[k * 4 + 3] <= 0) { // free slot only — real pointers win
+          this.predData[k * 4] = this.beatX;
+          this.predData[k * 4 + 1] = this.beatY;
+          this.predData[k * 4 + 2] = 1; // predator: flee + fear spike
+          this.predData[k * 4 + 3] = this.beatW * (1 - beatAge / 0.15);
+          break;
+        }
       }
     }
 

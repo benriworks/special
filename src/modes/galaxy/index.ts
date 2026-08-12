@@ -21,6 +21,7 @@ import {
   FS_TRIANGLE_VS, PingPong, compileProgram, drawFullscreen, UniformSetter,
 } from '../../engine/glutils';
 import { createPost, type Post } from '../../engine/post';
+import { BeatDetector } from '../../core/audio';
 import { mixThemes } from '../../core/themes';
 
 // ---------------------------------------------------------------------------
@@ -346,6 +347,10 @@ class GalaxyMode implements Mode {
   private colorBuf = new Float32Array(18);
   private wellBuf = new Float32Array(MAX_WELLS * 4);
 
+  // audio reactivity (neutral ×1 multipliers when ctx.audio === null)
+  private beat = new BeatDetector();
+  private aTurbMul = 1;
+
   // -------------------------------------------------------------------------
 
   init(ctx: ModeContext): void {
@@ -360,6 +365,7 @@ class GalaxyMode implements Mode {
     this.slowTime = 0;
     this.fastTime = 0;
     this.lastNowMs = -1; // don't count init cost as a frame
+    this.aTurbMul = 1;
 
     this.velProg = compileProgram(gl, FS_TRIANGLE_VS, VEL_FS, 'galaxy.vel');
     this.posProg = compileProgram(gl, FS_TRIANGLE_VS, POS_FS, 'galaxy.pos');
@@ -487,7 +493,7 @@ class GalaxyMode implements Mode {
     vu.set1f('uDt', dt);
     vu.set1f('uTime', time);
     vu.set1f('uGravity', this.gravity);
-    vu.set1f('uTurb', this.turb);
+    vu.set1f('uTurb', this.turb * this.aTurbMul);
     vu.set1f('uPulse', pulse);
     vu.set2f('uPulseCenter', pulseX, pulseY);
     vu.set4fv('uWells[0]', this.wellBuf);
@@ -621,9 +627,18 @@ class GalaxyMode implements Mode {
       numWells = 1;
     }
 
-    const pulse = ctx.pulse ? 0.9 : 0;
-    const px = (((ctx.pointer.x || ctx.width / 2) / ctx.width) * 2 - 1) / w2cx;
-    const py = (((ctx.pointer.y || ctx.height / 2) / ctx.height) * 2 - 1) / w2cy;
+    // audio: turbulence breathes with the mids; a bass attack reuses the pulse
+    // impulse machinery at low amplitude as a small shear kick from the core.
+    // With ctx.audio === null everything below is exactly the old path.
+    const au = ctx.audio;
+    this.aTurbMul = au ? 1 + 0.6 * au.mid : 1;
+    const beatKick = au !== null && this.beat.update(au.low, ctx.time, ctx.dt)
+      ? 0.1 + 0.14 * au.low : 0;
+
+    const pulse = ctx.pulse ? 0.9 : beatKick;
+    let px = (((ctx.pointer.x || ctx.width / 2) / ctx.width) * 2 - 1) / w2cx;
+    let py = (((ctx.pointer.y || ctx.height / 2) / ctx.height) * 2 - 1) / w2cy;
+    if (!ctx.pulse && beatKick > 0) { px = 0; py = 0; } // beat radiates from the core
     // desperate mode (stride 8 = software GL) runs the sim at half rate,
     // carrying the skipped dt over; a pulse always simulates immediately
     this.pendingDt = Math.min(0.06, this.pendingDt + ctx.dt);
@@ -667,7 +682,8 @@ class GalaxyMode implements Mode {
       gl.disable(gl.BLEND);
     }
 
-    this.post.end({ exposure: 1.0, bloom: 0.5, vignette: 0.32 });
+    // gentle exposure swell with overall level (exactly 1.0 with audio off)
+    this.post.end({ exposure: au ? 1 + 0.22 * au.level : 1.0, bloom: 0.5, vignette: 0.32 });
 
     // canonical GL state (post.end already left FBO=null, activeTexture=0)
     gl.disable(gl.BLEND);

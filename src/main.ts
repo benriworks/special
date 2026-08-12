@@ -15,11 +15,16 @@ declare global {
   interface Window {
     __lumina?: {
       ready: Promise<void>;
-      stats: () => { fps: number; frame: number; modeId: string; luma: number; variance: number };
+      stats: () => {
+        fps: number; frame: number; modeId: string; luma: number; variance: number;
+        audio: { level: number; low: number; mid: number; high: number } | null;
+      };
       setMode: (id: string) => void;
       themeId: () => string;
       quality: () => number;
       params: (id?: string) => Record<string, number | string>;
+      enableAudio: () => Promise<void>;
+      disableAudio: () => void;
     };
   }
 }
@@ -83,6 +88,8 @@ function boot(): void {
       themeId: () => engine.themeId,
       quality: () => engine.quality,
       params: (id?: string) => engine.getParamValues(id ?? engine.activeModeId),
+      enableAudio: () => engine.enableAudio(),
+      disableAudio: () => engine.disableAudio(),
     };
   }
 }

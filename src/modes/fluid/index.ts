@@ -24,6 +24,7 @@ import {
   FS_TRIANGLE_VS, PingPong, UniformSetter, compileProgram, createFBO, drawFullscreen, makeTexture,
 } from '../../engine/glutils';
 import { createPost, type Post } from '../../engine/post';
+import { BeatDetector } from '../../core/audio';
 import { mixThemes } from '../../core/themes';
 import {
   CLEAR_FS, CURL_FS, DIVERGENCE_FS, GRADIENT_FS, MAX_SPLATS, makeAdvectFS,
@@ -167,6 +168,12 @@ class FluidMode implements Mode {
   private strokeSeed = 0.17;
   private pulseStart = -1e3;
 
+  // audio reactivity (all zero/false when ctx.audio === null → exact no-op)
+  private beat = new BeatDetector();
+  private aLevel = 0;
+  private aLow = 0;
+  private beatNow = false;
+
   // splat staging (flushed in chunks of MAX_SPLATS)
   private velPosRad = new Float32Array(SPLAT_CAP * 4);
   private velVal = new Float32Array(SPLAT_CAP * 4);
@@ -230,6 +237,9 @@ class FluidMode implements Mode {
     this.wasDown = false;
     this.velCount = 0;
     this.dyeCount = 0;
+    this.aLevel = 0;
+    this.aLow = 0;
+    this.beatNow = false;
     this.ready = true;
 
     // zero-input life: seed a composition + pre-warm so frame 1 is alive
@@ -276,6 +286,11 @@ class FluidMode implements Mode {
     if (p.down && !this.wasDown) this.strokeSeed = (this.strokeSeed + 0.383) % 1;
     this.wasDown = p.down;
     const th = this.effTheme(ctx);
+    // audio: swell the idle emitters with level; detect bass attacks
+    const au = ctx.audio;
+    this.aLevel = au ? au.level : 0;
+    this.aLow = au ? au.low : 0;
+    this.beatNow = au !== null && this.beat.update(au.low, ctx.time, ctx.dt);
     // advection stays accurate at ≤1/30; injection/decay budgets follow the
     // engine-clamped real dt so brightness balance survives low fps.
     const dtSim = clamp(ctx.dt, 1 / 240, 1 / 30);
@@ -524,8 +539,19 @@ class FluidMode implements Mode {
       pal(th.colors, palT, this.tmpColor);
       // slow amplitude breathing → waves of brightness drifting through idle
       const breathe = 0.75 + 0.35 * Math.sin(time * 0.11 + i * 2.6);
-      const amt = 0.048 * dt60 * budget * breathe;
+      // audio: injection swells with level; a bass attack brightens this splat
+      // (aLevel/aLow are 0 and beatNow false with audio off → ×1, exact no-op)
+      const aAmp = 1 + 0.8 * this.aLevel + (this.beatNow ? 0.35 + 0.35 * this.aLow : 0);
+      const amt = 0.048 * dt60 * budget * breathe * aAmp;
       this.pushDye(this.posA[0], this.posA[1], 0.055, this.tmpColor[0] * amt, this.tmpColor[1] * amt, this.tmpColor[2] * amt);
+      if (this.beatNow) {
+        // soft radial mini-pulse: one-frame outward push from screen center
+        const rx = this.posA[0] - this.aspectX * 0.5;
+        const ry = this.posA[1] - this.aspectY * 0.5;
+        const rl = Math.hypot(rx, ry) || 1;
+        const kick = (0.6 + 0.6 * this.aLow) * simMin;
+        this.pushVel(this.posA[0], this.posA[1], 0.1, (rx / rl) * kick, (ry / rl) * kick);
+      }
     }
   }
 

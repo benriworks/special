@@ -19,6 +19,7 @@ import {
   FS_TRIANGLE_VS, PingPong, blit, compileProgram, createFBO, drawFullscreen, makeTexture, UniformSetter,
 } from '../../engine/glutils';
 import { createPost, type Post } from '../../engine/post';
+import { BeatDetector } from '../../core/audio';
 import { mixThemes } from '../../core/themes';
 
 // ---------------------------------------------------------------------------
@@ -374,6 +375,11 @@ class RDMode implements Mode {
   private seedOff = 0;
   private drift = 0;
 
+  // audio reactivity (bias exactly 0 / no seeds when ctx.audio === null)
+  private beatStrong = new BeatDetector(1.6, 0.14, 0.45);
+  private aFBias = 0;
+  private lastAudioSeedAt = -100;
+
   private colorBuf = new Float32Array(18);
   private segBuf = new Float32Array(MAX_SEG * 4);
   private segRBuf = new Float32Array(MAX_SEG * 2);
@@ -424,6 +430,8 @@ class RDMode implements Mode {
     this.stepBudget = 0;
     this.lastSplatAt = -100;
     this.lastSprinkleAt = 0;
+    this.aFBias = 0;
+    this.lastAudioSeedAt = -100;
     this.heatCool = 1e9; // fresh heat texture is zero — nothing to decay yet
     this.pendingReseed = false;
     this.drift = Math.random() * 500;
@@ -567,7 +575,7 @@ class RDMode implements Mode {
     u.setTexture('uState', pp.read.tex, 0);
     u.setTexture('uDriftTex', this.driftTex!, 1);
     u.set2f('uTexel', 1 / w, 1 / h);
-    u.set1f('uF', this.fCur);
+    u.set1f('uF', this.fCur + this.aFBias);
     u.set1f('uK', this.kCur);
     u.set1f('uFVar', this.fVarCur);
     drawFullscreen(gl);
@@ -729,6 +737,19 @@ class RDMode implements Mode {
       const x = (0.08 + 0.84 * Math.random()) * this.aspect;
       const y = 0.08 + 0.84 * Math.random();
       this.addSeg(x, y, x, y, rains ? 0.028 : 0.02, rains ? 0.9 : 0.8);
+    }
+
+    // audio: feed rate leans with the bass (patterns fatten/thin with the
+    // music); a strong beat sprinkles one tiny seed via the same micro-seed
+    // machinery. ctx.audio === null → bias exactly 0 and no extra segs.
+    const au = ctx.audio;
+    this.aFBias = au ? 0.0035 * au.low : 0;
+    if (au !== null && this.beatStrong.update(au.low, ctx.time, ctx.dt)
+      && ctx.time - this.lastAudioSeedAt > 0.9) {
+      this.lastAudioSeedAt = ctx.time;
+      const x = (0.1 + 0.8 * Math.random()) * this.aspect;
+      const y = 0.1 + 0.8 * Math.random();
+      this.addSeg(x, y, x, y, 0.02, 0.8);
     }
 
     // --- splat + heat passes (once per frame, before substeps) ---------------
