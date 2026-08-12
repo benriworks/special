@@ -1,5 +1,5 @@
 /**
- * URL hash state: `#m=<mode>&t=<theme>&l=<ja|en>&q=<quality>&p.<key>=<val>`
+ * URL hash state: `#m=<mode>&t=<theme>&l=<ja|en>&q=<quality>&kiosk=1&p.<key>=<val>`
  * Read once on boot; written debounced (500ms) via history.replaceState.
  * Round-trip safe (component-encoded values).
  */
@@ -9,6 +9,10 @@ export interface UrlState {
   theme?: string;
   lang?: 'ja' | 'en';
   quality?: number;
+  /** #kiosk=1 — exhibition mode (wake lock + idle auto-cycle). */
+  kiosk?: boolean;
+  /** #kioskInterval=<s> — test-only cycle override; main.ts honors it only with debug=1. */
+  kioskInterval?: number;
   params: Record<string, string>;
   /** true when the boot URL carried any hash params (deep link → skip attract demo). */
   hasParams: boolean;
@@ -31,6 +35,11 @@ function parseHash(hash: string): UrlState {
     else if (key === 'q') {
       const q = parseFloat(val);
       if (isFinite(q) && q > 0 && q <= 1) state.quality = q;
+    } else if (key === 'kiosk') {
+      if (val === '1') state.kiosk = true;
+    } else if (key === 'kioskInterval') {
+      const s = parseFloat(val);
+      if (isFinite(s) && s > 0) state.kioskInterval = s;
     } else if (key.startsWith('p.')) state.params[key.slice(2)] = val;
   }
   return state;
@@ -53,6 +62,10 @@ function serialize(s: UrlState): string {
   if (s.theme) parts.push(`t=${encodeURIComponent(s.theme)}`);
   if (s.lang) parts.push(`l=${s.lang}`);
   if (s.quality !== undefined) parts.push(`q=${encodeURIComponent(String(s.quality))}`);
+  // kiosk flags round-trip so debounced rewrites (mode/theme sync) never strip
+  // them — an exhibition machine that reloads must still be in kiosk mode
+  if (s.kiosk) parts.push('kiosk=1');
+  if (s.kioskInterval !== undefined) parts.push(`kioskInterval=${encodeURIComponent(String(s.kioskInterval))}`);
   for (const [k, v] of Object.entries(s.params)) {
     parts.push(`p.${encodeURIComponent(k)}=${encodeURIComponent(v)}`);
   }

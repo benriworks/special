@@ -82,6 +82,8 @@ export function mountShell(root: HTMLElement, engine: Engine): void {
     b.innerHTML = html;
     return b;
   };
+  const micBtn = mkBtn(desktopActions, ICONS.mic, 'bar-btn mic-btn');
+  micBtn.setAttribute('aria-pressed', 'false');
   const saveBtn = mkBtn(desktopActions, ICONS.save);
   const shareBtn = mkBtn(desktopActions, ICONS.share);
   const fsBtn = mkBtn(desktopActions, ICONS.fullscreen);
@@ -149,6 +151,10 @@ export function mountShell(root: HTMLElement, engine: Engine): void {
       });
       return item;
     };
+    const micItem = add(ICONS.mic, t('mic'), 'M', toggleMic);
+    micItem.classList.add('mic-item');
+    micItem.setAttribute('aria-pressed', String(engine.audioEnabled));
+    if (engine.audioEnabled) micItem.classList.add('active', 'on');
     add(ICONS.save, t('save'), 'S', doSave);
     add(ICONS.share, t('share'), '', doShare);
     if (fullscreenSupported()) add(ICONS.fullscreen, t('fullscreen'), 'F', toggleFullscreen);
@@ -197,6 +203,32 @@ export function mountShell(root: HTMLElement, engine: Engine): void {
     setLang(next);
     writeState({ lang: next });
     showChip(next === 'ja' ? '日本語' : 'English');
+  }
+
+  // ---- mic toggle (engine audio reactivity) ---------------------------------
+  let micBusy = false;
+  function toggleMic(): void {
+    if (micBusy) return;
+    if (engine.audioEnabled) {
+      engine.disableAudio(); // 'audiochange' drives the UI update
+      return;
+    }
+    micBusy = true;
+    micBtn.classList.add('busy');
+    micBtn.setAttribute('aria-busy', 'true');
+    engine.enableAudio()
+      .catch(() => showChip(t('micDenied'))) // permission denied / no device — stay off
+      .finally(() => {
+        micBusy = false;
+        micBtn.classList.remove('busy');
+        micBtn.removeAttribute('aria-busy');
+        updateMicUI();
+      });
+  }
+  function updateMicUI(): void {
+    const on = engine.audioEnabled;
+    micBtn.classList.toggle('on', on);
+    micBtn.setAttribute('aria-pressed', String(on));
   }
 
   // ---- shortcut echo chip -------------------------------------------------------
@@ -285,6 +317,7 @@ export function mountShell(root: HTMLElement, engine: Engine): void {
     if (!openPopover.contains(n) && !swatch.contains(n) && !overflowBtn.contains(n)) closePopovers();
   });
 
+  micBtn.addEventListener('click', toggleMic);
   saveBtn.addEventListener('click', doSave);
   shareBtn.addEventListener('click', doShare);
   fsBtn.addEventListener('click', toggleFullscreen);
@@ -354,6 +387,9 @@ export function mountShell(root: HTMLElement, engine: Engine): void {
       }
       case 'l': case 'L':
         toggleLang();
+        break;
+      case 'm': case 'M':
+        toggleMic();
         break;
       case 'h': case 'H':
         pinnedHidden = !pinnedHidden;
@@ -493,6 +529,11 @@ export function mountShell(root: HTMLElement, engine: Engine): void {
     updateSwatch();
     if (openPopover === themePopover) buildThemePopover();
   });
+  engine.on('audiochange', (detail) => {
+    updateMicUI();
+    showChip(t(detail === 'on' ? 'micChipOn' : 'micChipOff'));
+    if (openPopover === morePopover) buildMorePopover(); // keep the ⋯ entry's state in sync
+  });
 
   onLangChange(() => {
     for (const mode of engine.modes) {
@@ -505,6 +546,9 @@ export function mountShell(root: HTMLElement, engine: Engine): void {
   });
 
   function refreshTitles(): void {
+    micBtn.title = `${t('mic')} (M)`;
+    micBtn.setAttribute('aria-label', t('mic'));
+    updateMicUI();
     saveBtn.title = `${t('save')} (S)`;
     shareBtn.title = t('share');
     fsBtn.title = `${t('fullscreen')} (F)`;

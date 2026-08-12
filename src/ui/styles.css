@@ -205,6 +205,20 @@ button:focus-visible { outline: none; box-shadow: var(--ui-focus-ring); border-r
 .bar-btn .txt { font-size: 11px; letter-spacing: 0.06em; color: var(--ui-text-dim2); }
 .bar-btn:hover .txt, .bar-btn:active .txt { color: var(--ui-text); }
 
+/* mic toggle: accent tint while listening (matches .chip.active / .tab-pill),
+   soft icon pulse while the permission prompt / device is connecting */
+.bar-btn.on {
+  color: var(--ui-accent);
+  background: color-mix(in srgb, var(--ui-accent) 14%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ui-accent) 30%, transparent);
+}
+.bar-btn.on:hover { color: var(--ui-accent); }
+.bar-btn.busy svg { animation: mic-busy 1.1s ease-in-out infinite; }
+@keyframes mic-busy {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 0.9; }
+}
+
 .desktop-actions { display: none; align-items: center; gap: 2px; }
 .overflow-btn { display: flex; }
 @media (min-width: 760px) {
@@ -319,6 +333,7 @@ button:focus-visible { outline: none; box-shadow: var(--ui-focus-ring); border-r
   flex: none;
 }
 .popover-item.active { background: var(--ui-active-bg); }
+.popover-item.on svg { color: var(--ui-accent); }
 .popover-item .kbd {
   margin-left: auto;
   font-family: var(--font-mono);
@@ -587,6 +602,7 @@ button:focus-visible { outline: none; box-shadow: var(--ui-focus-ring); border-r
   margin-bottom: 20px;
 }
 .about-card p { font-size: 13.5px; line-height: 1.75; color: var(--ui-text); margin: 0 0 12px; }
+.about-card p.about-privacy { font-size: 12px; line-height: 1.7; color: var(--ui-text-dim); margin: -4px 0 12px; }
 .about-card h3 {
   font-size: 12px;
   letter-spacing: 0.18em;
@@ -673,6 +689,7 @@ button:focus-visible { outline: none; box-shadow: var(--ui-focus-ring); border-r
   .tab-pill { transition: none; }
   .tabs.shimmer::after { animation: none; opacity: 0; }
   .bar-handle.visible { animation: none; opacity: 0.45; }
+  .bar-btn.busy svg { animation: none; opacity: 0.6; }
   .echo-chip { animation: echo-fade 0.9s ease-out forwards; }
   .lumina-flash { display: none; }
   .touch-ripple { animation-duration: 0.3s; }

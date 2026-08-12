@@ -5,6 +5,7 @@
 import './ui/styles.css';
 import { readState, writeState } from './core/urlstate';
 import { initLang } from './core/i18n';
+import { initKiosk } from './core/kiosk';
 import { createGL } from './engine/gl';
 import { Engine } from './engine/engine';
 import { modes } from './modes';
@@ -79,6 +80,10 @@ function boot(): void {
   engine.on('themechange', (id) => writeState({ theme: id }));
 
   engine.start();
+
+  // #kiosk=1 → exhibition mode (wake lock + 90s zero-input auto-cycle);
+  // the interval override is test-only and ignored without debug=1
+  if (state.kiosk) initKiosk(engine, { intervalS: debug ? state.kioskInterval : undefined });
 
   if (debug) {
     window.__lumina = {

@@ -152,7 +152,7 @@ async function testMode(browser, modeId) {
 }
 
 // ---------------------------------------------------------------------------
-// full-run mode cycling: all 5 modes, 3 rounds, console must stay clean
+// full-run mode cycling: all registered modes, 3 rounds, console must stay clean
 // ---------------------------------------------------------------------------
 async function testCycling(browser) {
   const result = { mode: 'cycle x3', status: 'PASS', fps: 0, luma: 0, variance: 0, notes: [] };

@@ -4,8 +4,8 @@
 
 # LUMINA — 光の遊び場
 
-**触れて遊ぶ5つのGPUアート世界。ブラウザだけで動く光の遊び場。**
-*Five GPU worlds of light to touch and play, running entirely in your browser.*
+**触れて遊ぶ6つのGPUアート世界。ブラウザだけで動く光の遊び場。**
+*Six GPU worlds of light to touch and play, running entirely in your browser.*
 
 **▶ https://benriworks.github.io/special/**
 （GitHub Pages の設定後に公開されます / goes live after Pages setup — see [公開手順](#公開手順) / [Deployment](#deployment)）
@@ -16,7 +16,7 @@
 
 ## 日本語
 
-### ✦ 5つのモード
+### ✦ 6つのモード
 
 | # | モード | ひとこと |
 |---|--------|----------|
@@ -25,17 +25,19 @@
 | 3 | 群れ *Flock* | 光の群れが指を追う |
 | 4 | 反応拡散 *RD* | 生命のように育つ模様 |
 | 5 | 文字 *Moji* | 文字がほどけて光になる |
+| 6 | 花火 *Hanabi* | 夜空に咲いて、散る光 |
 
 ### 操作
 
 | キー / ジェスチャ | 動作 |
 |---|---|
-| `1` – `5` | モード切替 |
+| `1` – `6` | モード切替 |
 | `Space` | パルス |
 | `F` | 全画面 |
 | `S` | PNG保存 |
 | `T` | テーマ切替 |
 | `L` | 言語切替（日本語 / English） |
+| `M` | マイクで反応 ON/OFF |
 | `H` | バーを隠す |
 | `?` | このサイトについて |
 | ドラッグ | 光をかき混ぜる |
@@ -47,6 +49,24 @@
 
 オーロラ **Aurora** ／ 焔 **Ember** ／ 桜 **Sakura** ／ 深海 **Abyss** ／ 墨 **Sumi**
 
+### 音に反応（マイク）
+
+バーのマイクボタン（または `M` キー）をオンにすると、6つのモードすべてが周囲の音——音楽、拍手、声——にほのかに反応します。初回はブラウザがマイクの使用許可を求めます。
+
+> マイクの音は端末内で解析されるだけ。録音も送信もされません。
+
+### 展示モード
+
+URL に `#kiosk=1` を付けると、展示・イベント向けの振る舞いになります:
+
+- **画面スリープ防止** — Screen Wake Lock を自動取得し、タブ復帰時や解除時にも取り直します（対応ブラウザのみ。非対応環境では静かに何もしません）
+- **自動巡回** — 無操作が90秒続くと次のモードへ。誰かが触れている間は決して切り替わりません
+- おすすめ設定: タブレットでは「ホーム画面に追加」からフルスクリーンで起動し、開始モードやテーマも URL で固定します
+
+```
+https://benriworks.github.io/special/#kiosk=1&m=hanabi&t=sumi
+```
+
 ### AIチームがつくりました
 
 このサイトは、Claude がオーケストレーションする複数のAIエージェントのチームによって、設計から実装、レビューまで一貫して作られました。エンドロール風にご紹介します。
@@ -56,7 +76,7 @@
 | 監督 | オーケストレーター（Claude） |
 | 企画・デザイン | デザインパネル・エージェント |
 | 基盤 | ファウンデーション・エンジニア |
-| グラフィックス | 5人のモード・エンジニア（並列作業） |
+| グラフィックス | 6人のモード・エンジニア（並列作業） |
 | QA | 敵対的レビュー・エージェント |
 | 検証 | 自動検証ハーネス |
 
@@ -94,7 +114,7 @@ GitHub Pages（GitHub Actions 経由）で公開します。リポジトリの�
 
 ## English
 
-### ✦ Five Modes
+### ✦ Six Modes
 
 | # | Mode | One-liner |
 |---|------|-----------|
@@ -103,17 +123,19 @@ GitHub Pages（GitHub Actions 経由）で公開します。リポジトリの�
 | 3 | Flock（群れ） | A flock of light that follows you |
 | 4 | RD（反応拡散） | Reaction–diffusion patterns that grow like living things |
 | 5 | Moji（文字） | Characters dissolving into light |
+| 6 | Hanabi（花火） | Fireworks that bloom and fall across the night |
 
 ### Controls
 
 | Key / Gesture | Action |
 |---|---|
-| `1` – `5` | Switch modes |
+| `1` – `6` | Switch modes |
 | `Space` | Pulse |
 | `F` | Fullscreen |
 | `S` | Save PNG |
 | `T` | Cycle theme |
 | `L` | Toggle language (日本語 / English) |
+| `M` | Toggle sound reactivity |
 | `H` | Hide the bar |
 | `?` | About overlay |
 | Drag | Stir the light |
@@ -125,6 +147,24 @@ GitHub Pages（GitHub Actions 経由）で公開します。リポジトリの�
 
 **Aurora**（オーロラ） / **Ember**（焔） / **Sakura**（桜） / **Abyss**（深海） / **Sumi**（墨）
 
+### Sound Reactivity (Microphone)
+
+Turn on the mic button in the bar (or press `M`) and all six modes subtly react to the sound around you — music, claps, voices. Your browser asks for microphone permission the first time.
+
+> Microphone audio is analysed on your device only — never recorded, never uploaded.
+
+### Exhibition Mode
+
+Append `#kiosk=1` to the URL for exhibition / event-friendly behavior:
+
+- **Keeps the screen awake** — acquires a Screen Wake Lock and re-acquires it when the tab returns or the lock is released (where supported; silently does nothing elsewhere)
+- **Auto-cycling** — after 90 seconds with zero input it advances to the next mode; it never switches while someone is playing
+- Recommended setup: on tablets, use "Add to Home Screen" to launch fullscreen, and pin the starting mode and theme in the URL
+
+```
+https://benriworks.github.io/special/#kiosk=1&m=hanabi&t=sumi
+```
+
 ### Built by a team of AIs
 
 This site was designed, built, and reviewed end-to-end by a team of AI agents orchestrated by Claude. Roll the credits:
@@ -134,7 +174,7 @@ This site was designed, built, and reviewed end-to-end by a team of AI agents or
 | Direction | Orchestrator (Claude) |
 | Concept & design | Design panel agents |
 | Foundation | Foundation engineer |
-| Graphics | Five mode engineers, working in parallel |
+| Graphics | Six mode engineers, working in parallel |
 | QA | Adversarial review agents |
 | Verification | Automated acceptance harness |
 

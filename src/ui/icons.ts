@@ -19,6 +19,7 @@ export function modeIcon(id: string): string {
 }
 
 export const ICONS = {
+  mic: wrap('<rect x="9" y="3.5" width="6" height="11" rx="3"/><path d="M6 11.8v.4a6 6 0 0 0 12 0v-.4"/><path d="M12 18.2v2.3"/>'),
   save: wrap('<path d="M12 4v10"/><path d="M8 11l4 4 4-4"/><path d="M5 19h14"/>'),
   share: wrap('<path d="M9.5 13.5l5-3"/><circle cx="6.5" cy="15" r="2.6"/><circle cx="17.5" cy="8.5" r="2.6"/><path d="M12 20.5h7"/>'),
   fullscreen: wrap('<path d="M4 9V4h5"/><path d="M20 9V4h-5"/><path d="M4 15v5h5"/><path d="M20 15v5h-5"/>'),
