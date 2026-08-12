@@ -14,5 +14,6 @@ import { driftMode } from './drift';
 import { gravityMode } from './gravity';
 import { tesseractMode } from './tesseract';
 import { premiereMode } from './premiere';
+import { hearthMode } from './hearth';
 
-export const modes: Mode[] = [fluidMode, galaxyMode, flockMode, rdMode, mojiMode, hanabiMode, driftMode, gravityMode, tesseractMode, premiereMode];
+export const modes: Mode[] = [fluidMode, galaxyMode, flockMode, rdMode, mojiMode, hanabiMode, driftMode, gravityMode, tesseractMode, premiereMode, hearthMode];

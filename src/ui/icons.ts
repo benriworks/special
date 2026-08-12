@@ -16,6 +16,7 @@ const MODE_ICONS: Record<string, string> = {
   gravity: wrap('<circle cx="12" cy="12" r="4.5"/><path d="M3.5 14.5C4.5 9 8 5.5 12 5.5s7.5 3.5 8.5 9"/><path d="M18.5 17.5c.9-.9 1.6-1.9 2-3"/>'),
   tesseract: wrap('<rect x="4" y="4" width="16" height="16"/><rect x="9.5" y="9.5" width="5" height="5"/><path d="M4 4l5.5 5.5"/><path d="M20 4l-5.5 5.5"/><path d="M4 20l5.5-5.5"/><path d="M20 20l-5.5-5.5"/>'),
   premiere: wrap('<rect x="4" y="3.5" width="16" height="9" rx="1"/><path d="M8.5 12.5L12 19l3.5-6.5"/><circle cx="12" cy="19.5" r="1" fill="currentColor" stroke="none"/>'),
+  hearth: wrap('<path d="M12 3.5c2.4 2.3 4 4.4 4 6.7a4 4 0 0 1-8 0c0-2.3 1.6-4.4 4-6.7z"/><path d="M12 8.5c.9 1 1.5 1.9 1.5 2.8a1.5 1.5 0 0 1-3 0c0-.9.6-1.8 1.5-2.8z"/><path d="M5.5 15.5l13 4.5"/><path d="M18.5 15.5l-13 4.5"/>'),
 };
 
 export function modeIcon(id: string): string {
