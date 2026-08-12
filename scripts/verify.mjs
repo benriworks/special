@@ -19,7 +19,7 @@ if (!process.env.PLAYWRIGHT_BROWSERS_PATH && existsSync('/opt/pw-browsers')) {
   process.env.PLAYWRIGHT_BROWSERS_PATH = '/opt/pw-browsers';
 }
 
-const MODES = ['fluid', 'galaxy', 'flock', 'rd', 'moji', 'hanabi', 'drift', 'gravity'];
+const MODES = ['fluid', 'galaxy', 'flock', 'rd', 'moji', 'hanabi', 'drift', 'gravity', 'tesseract'];
 const VARIANCE_MIN = 1e-6;
 const FPS_FAIL = 15;
 const FPS_WARN = 20;

@@ -11,6 +11,7 @@ import { PointerInput } from './pointer';
 import {
   FS_TRIANGLE_VS, compileProgram, drawFullscreen, invalidateGLCaches, UniformSetter,
 } from './glutils';
+import { MemoryAtlas } from './memory';
 import { DEFAULT_THEME_ID, getTheme, linearToCss, mixThemes, themes } from '../core/themes';
 
 const QUALITY_TIERS = [1.0, 0.7, 0.45] as const;
@@ -30,6 +31,17 @@ const PULSE_RING_S = 0.3;
  *  rebuild waits until the size has been stable this long. */
 const RESIZE_SETTLE_S = 0.2;
 const TOUCHED_KEY = 'lumina.touched';
+
+// -- session-memory atlas capture policy (full rules: types.ts ctx.memory) --
+/** Cadence of periodic captures during active play. */
+const MEMORY_INTERVAL_S = 5;
+/** Pointer/pulse activity must be at most this recent for a frame to count as
+ *  a "moment the user actually touched" (idle only ever seeds an empty atlas). */
+const MEMORY_ACTIVITY_MS = 8000;
+/** After a quality-governor re-init, mid-reseed frames are held out of the atlas. */
+const MEMORY_REINIT_HOLD_S = 1;
+/** The mode that VIEWS the memories never feeds them. */
+const MEMORY_EXEMPT_MODE = 'tesseract';
 
 const FADE_FS = `#version 300 es
 precision highp float;
@@ -121,6 +133,14 @@ export class Engine {
   private audioIn: AudioInput | null = null;
   private audioOn = false; // emitted state — dedupes 'audiochange'
 
+  private memory: MemoryAtlas;
+  /** Engine time before which no periodic memory capture fires. */
+  private memNextAt = 0;
+  /** Engine time until which captures are held after a governor re-init. */
+  private memHoldUntil = 0;
+  /** performance.now() of the last real pointer/pulse activity (memory gate). */
+  private lastMemActivity = -1e9;
+
   private fadeTex: WebGLTexture | null = null;
   private fadeSize: [number, number] = [0, 0];
   private fadeStart = -1;
@@ -181,11 +201,15 @@ export class Engine {
 
     this.pointer = new PointerInput(this.canvas, {
       onRealPointerDown: () => this.markTouched(),
-      onRealActivity: () => { this.lastRealActivity = performance.now(); },
+      onRealActivity: () => {
+        this.lastRealActivity = performance.now();
+        this.lastMemActivity = performance.now();
+      },
       onPulse: () => this.requestPulse(),
     });
 
     const gl = this.gl;
+    this.memory = new MemoryAtlas(gl); // GL allocation is lazy — free until first capture
     this.ctx = {
       gl,
       canvas: this.canvas,
@@ -197,6 +221,7 @@ export class Engine {
       quality: QUALITY_TIERS[this.tierIndex],
       audio: null,
       pulse: false,
+      memory: null,
     };
 
     this.createOverlayResources();
@@ -232,6 +257,7 @@ export class Engine {
     const gl = this.gl;
     if (this.activeMode) { try { this.activeMode.destroy(gl); } catch { /* already gone */ } }
     this.activeMode = null;
+    this.memory.destroy();
     if (this.fadeTex) gl.deleteTexture(this.fadeTex);
     if (this.fadeProg) gl.deleteProgram(this.fadeProg);
     if (this.ringProg) gl.deleteProgram(this.ringProg);
@@ -298,6 +324,7 @@ export class Engine {
   /** Space / two-finger tap. ctx.pulse is true for exactly one frame. */
   requestPulse(): void {
     this.pulseQueued = true;
+    this.lastMemActivity = performance.now(); // pulses count as memory-worthy activity
   }
 
   // -------------------------------------------------------------------------
@@ -449,14 +476,18 @@ export class Engine {
     // and returns the same AudioLevels object (no per-frame allocation)
     ctx.audio = this.audioIn !== null && this.audioIn.running ? this.audioIn.sample() : null;
 
+    let plainFrame = false; // an ordinary activeMode.frame() — no switch/reinit
     try {
       if (this.pendingSwitchId !== null) {
         this.performSwitch(this.pendingSwitchId);
       } else if (this.pendingReinit) {
         this.pendingReinit = false;
+        // governor reseed: mid-reseed frames are held out of the memory atlas
+        this.memHoldUntil = this.time + MEMORY_REINIT_HOLD_S;
         this.restartActiveMode();
       } else if (this.activeMode) {
         this.activeMode.frame(ctx);
+        plainFrame = true;
       }
     } catch (err) {
       console.error('[lumina] mode frame failed:', err);
@@ -464,6 +495,11 @@ export class Engine {
       throw err;
     }
     this.resetGLState();
+
+    // Periodic memory capture: only plain frames (switch frames go through the
+    // goodbye path inside performSwitch, reinit frames are skipped), and
+    // always BEFORE the fade overlay — the crossfade blend is never captured.
+    if (plainFrame) this.maybeCaptureMemory();
 
     this.drawFadeOverlay();
     this.drawPulseRing();
@@ -535,6 +571,8 @@ export class Engine {
       this.activeMode.frame(this.ctx);
       this.resetGLState();
       this.captureCanvas();
+      // "goodbye frame": the crossfade capture moment doubles as a memory
+      this.tryMemoryCapture(this.activeMode.id);
       this.destroyActive();
       this.fadeStart = this.time;
     }
@@ -613,6 +651,42 @@ export class Engine {
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     gl.copyTexSubImage2D(gl.TEXTURE_2D, 0, 0, 0, 0, 0, w, h);
     gl.bindTexture(gl.TEXTURE_2D, null);
+  }
+
+  // -------------------------------------------------------------------------
+  // Session-memory atlas (feeds the tesseract mode via ctx.memory)
+  // -------------------------------------------------------------------------
+
+  /** Time-gate for the periodic ("every ~5s of active play") capture path. */
+  private maybeCaptureMemory(): void {
+    if (!this.activeMode) return;
+    if (this.time < this.memNextAt || this.time < this.memHoldUntil) return;
+    this.tryMemoryCapture(this.activeMode.id);
+  }
+
+  /**
+   * Shared gate + capture for both memory paths (periodic and mode-switch
+   * goodbye frame). Snapshots the default framebuffer AS IT STANDS — callers
+   * only invoke it while it holds a pure mode frame (never the crossfade
+   * blend, never a mid-reseed frame). On success the ctx.memory view goes (or
+   * stays) live and the periodic cadence restarts.
+   */
+  private tryMemoryCapture(modeId: string): void {
+    if (modeId === MEMORY_EXEMPT_MODE) return; // the memory viewer never feeds the atlas
+    if (document.hidden) return;               // background tabs make no memories
+    const touchedRecently = performance.now() - this.lastMemActivity < MEMORY_ACTIVITY_MS;
+    // memories = moments the user actually touched; pure idle never overwrites
+    // them — but a completely empty atlas accepts idle frames so the tesseract
+    // is never starved.
+    if (!touchedRecently && this.memory.used > 0) return;
+    this.memory.capture(this.ctx.width, this.ctx.height, modeId);
+    this.ctx.memory = this.memory.info;
+    this.memNextAt = this.time + MEMORY_INTERVAL_S;
+  }
+
+  /** Debug hook (window.__lumina.memory): atlas fill state. */
+  getMemoryInfo(): { used: number; stamp: number } {
+    return { used: this.memory.used, stamp: this.memory.stamp };
   }
 
   // -------------------------------------------------------------------------
@@ -868,6 +942,12 @@ export class Engine {
     this.ring = null;
     this.statBuf = null;
     this.statFence = null;
+    // memory atlas: handles died with the context — drop them and forget the
+    // history (documented as acceptable); it reallocates lazily on capture.
+    this.memory.invalidate();
+    this.ctx.memory = null;
+    this.memNextAt = 0;
+    this.memHoldUntil = 0;
     try { this.createOverlayResources(); } catch (err) {
       console.error('[lumina] failed to rebuild overlay resources after context restore:', err);
       return;

@@ -21,6 +21,7 @@ declare global {
         audio: { level: number; low: number; mid: number; high: number } | null;
       };
       setMode: (id: string) => void;
+      memory: () => { used: number; stamp: number };
       themeId: () => string;
       quality: () => number;
       params: (id?: string) => Record<string, number | string>;
@@ -90,6 +91,7 @@ function boot(): void {
       ready: engine.ready,
       stats: () => engine.getStats(),
       setMode: (id: string) => engine.switchMode(id),
+      memory: () => engine.getMemoryInfo(),
       themeId: () => engine.themeId,
       quality: () => engine.quality,
       params: (id?: string) => engine.getParamValues(id ?? engine.activeModeId),

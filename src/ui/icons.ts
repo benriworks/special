@@ -14,6 +14,7 @@ const MODE_ICONS: Record<string, string> = {
   hanabi: wrap('<circle cx="12" cy="10" r="1.3" fill="currentColor" stroke="none"/><path d="M12 3v3.5"/><path d="M12 13.5v3"/><path d="M5.9 6.5l2.5 2"/><path d="M18.1 6.5l-2.5 2"/><path d="M5 12h3.5"/><path d="M15.5 12H19"/><path d="M6.8 16l1.9-2.4"/><path d="M17.2 16l-1.9-2.4"/><path d="M12 19.5v1.5"/>'),
   drift: wrap('<circle cx="16.5" cy="6.5" r="1.3" fill="currentColor" stroke="none"/><circle cx="9" cy="11" r="1" fill="currentColor" stroke="none"/><circle cx="15" cy="15.5" r="0.8" fill="currentColor" stroke="none"/><path d="M13.2 8.3L8.5 5.7"/><path d="M6.2 12.5l-3-1.7"/><path d="M12.3 17l-3.8-2.1"/><path d="M20.5 18.5l-2.7-1.5"/>'),
   gravity: wrap('<circle cx="12" cy="12" r="4.5"/><path d="M3.5 14.5C4.5 9 8 5.5 12 5.5s7.5 3.5 8.5 9"/><path d="M18.5 17.5c.9-.9 1.6-1.9 2-3"/>'),
+  tesseract: wrap('<rect x="4" y="4" width="16" height="16"/><rect x="9.5" y="9.5" width="5" height="5"/><path d="M4 4l5.5 5.5"/><path d="M20 4l-5.5 5.5"/><path d="M4 20l5.5-5.5"/><path d="M20 20l-5.5-5.5"/>'),
 };
 
 export function modeIcon(id: string): string {
