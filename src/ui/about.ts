@@ -53,6 +53,7 @@ export function createAbout(root: HTMLElement, engine: Engine): AboutHandle {
       <div class="about-tagline">光の遊び場 — Playground of Light</div>
       <p>${esc(t('aboutIntro'))}</p>
       <p class="about-privacy">${esc(t('aboutPrivacyMic'))}</p>
+      <p class="about-privacy">${esc(t('aboutPrivacyMemory'))}</p>
 
       <h3>${esc(t('aboutMadeByTitle'))}</h3>
       <p>${esc(t('aboutMadeByBody'))}</p>
@@ -71,7 +72,7 @@ export function createAbout(root: HTMLElement, engine: Engine): AboutHandle {
         <table>
           <thead><tr><th>${esc(t('keyLabel'))}</th><th>${esc(t('actionLabel'))}</th></tr></thead>
           <tbody>
-            ${keyRow(`1 – ${engine.modes.length}`, t('ctrlModes'))}
+            ${keyRow(`1 – ${Math.min(engine.modes.length, 9)}`, t('ctrlModes'))}
             ${keyRow('Space', t('ctrlPulse'))}
             ${keyRow('F', t('ctrlFullscreen'))}
             ${keyRow('S', t('ctrlSave'))}

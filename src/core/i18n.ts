@@ -30,22 +30,26 @@ const STRINGS: Record<string, { ja: string; en: string }> = {
 
   aboutTagline: { ja: '光の遊び場', en: 'Playground of Light' },
   aboutIntro: {
-    ja: '流体、銀河、群れ、模様、文字、花火、遊泳、そして重力——8つのGPUシミュレーションが、あなたのデバイスの中だけでリアルタイムに光ります。サーバーなし、アップロードなし、追跡なし。ただ触れて、光をかき混ぜてください。',
-    en: 'Fluid, galaxy, flock, pattern, letters, fireworks, drift, and gravity — eight GPU simulations glowing in real time, entirely on your device. No servers, no uploads, no tracking. Just reach in and stir the light.',
+    ja: '流体、銀河、群れ、模様、文字、花火、遊泳、重力、追憶、上映、そして暖炉——11のGPUシミュレーションが、あなたのデバイスの中だけでリアルタイムに光ります。サーバーなし、アップロードなし、追跡なし。ただ触れて、光をかき混ぜてください。',
+    en: 'Fluid, galaxy, flock, pattern, letters, fireworks, drift, gravity, tesseract, premiere, and hearth — eleven GPU simulations glowing in real time, entirely on your device. No servers, no uploads, no tracking. Just reach in and stir the light.',
   },
   aboutPrivacyMic: {
     ja: 'マイクの音は端末内で解析されるだけ。録音も送信もされません。',
     en: 'Microphone audio is analysed on your device only — never recorded, never uploaded.',
   },
+  aboutPrivacyMemory: {
+    ja: '追憶・上映が映す「記憶」も端末のメモリ内だけ。保存も送信もされません。',
+    en: "The 'memories' shown in Tesseract and Premiere live only in your device's memory — never saved, never uploaded.",
+  },
   aboutMadeByTitle: { ja: 'AIチームがつくりました', en: 'Built by a team of AIs' },
   aboutMadeByBody: {
-    ja: 'デザイン会議が世界観を描き、基盤エンジニアがエンジンを組み、8体のエージェントがそれぞれのモードを並行して実装。意地悪なレビュアーが粗を探し、自動検証ハーネスが全モードに緑のランプを灯すまで作り直す——その全体を、Claudeが指揮しました。',
-    en: 'A design panel sketched the vision, a foundation engineer built the engine, and eight agents grew one mode each in parallel. Adversarial reviewers hunted for flaws, and nothing shipped until an automated verify harness turned every mode green — the whole ensemble orchestrated by Claude.',
+    ja: 'デザイン会議が世界観を描き、基盤エンジニアがエンジンを組み、11体のエージェントがそれぞれのモードを並行して実装。意地悪なレビュアーが粗を探し、自動検証ハーネスが全モードに緑のランプを灯すまで作り直す——その全体を、Claudeが指揮しました。',
+    en: 'A design panel sketched the vision, a foundation engineer built the engine, and eleven agents grew one mode each in parallel. Adversarial reviewers hunted for flaws, and nothing shipped until an automated verify harness turned every mode green — the whole ensemble orchestrated by Claude.',
   },
   creditDirection: { ja: '監督', en: 'Direction' },
   creditDirectionBy: { ja: 'Claude（オーケストレーター）', en: 'Claude (orchestrator)' },
   creditGraphics: { ja: 'グラフィックス', en: 'Graphics' },
-  creditGraphicsBy: { ja: 'モード担当エージェント ×8', en: 'Eight mode engineer agents' },
+  creditGraphicsBy: { ja: 'モード担当エージェント ×11', en: 'Eleven mode engineer agents' },
   creditUx: { ja: 'UX', en: 'UX' },
   creditUxBy: { ja: 'デザイン会議エージェント', en: 'Design panel agents' },
   creditQa: { ja: 'QA', en: 'QA' },
@@ -53,7 +57,7 @@ const STRINGS: Record<string, { ja: string; en: string }> = {
 
   aboutModesTitle: { ja: 'モード', en: 'Modes' },
   aboutControlsTitle: { ja: '操作', en: 'Controls' },
-  ctrlModes: { ja: 'モード切替', en: 'Switch modes' },
+  ctrlModes: { ja: 'モード切替（タブ/スワイプで全モード）', en: 'Switch modes (tab/swipe reaches all)' },
   ctrlPulse: { ja: 'パルス', en: 'Pulse' },
   ctrlFullscreen: { ja: '全画面', en: 'Fullscreen' },
   ctrlSave: { ja: 'PNG保存', en: 'Save PNG' },

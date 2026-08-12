@@ -242,7 +242,7 @@ export function mountShell(root: HTMLElement, engine: Engine): void {
   }
 
   // ---- scrollable tab strip (narrow screens) --------------------------------------
-  // Under 760px the 8-tab strip overflows and scrolls horizontally; the pill
+  // Under 900px the 11-tab strip overflows and scrolls horizontally; the pill
   // and the tabs share the strip's content coordinate space, so offsetLeft
   // stays valid at any scroll position.
   function tabsScrollable(): boolean {

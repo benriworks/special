@@ -127,7 +127,7 @@ button:focus-visible { outline: none; box-shadow: var(--ui-focus-ring); border-r
     -webkit-backdrop-filter: blur(16px) saturate(140%);
   }
 }
-@media (min-width: 760px) {
+@media (min-width: 900px) {
   .bar { height: 48px; }
 }
 
@@ -175,13 +175,15 @@ button:focus-visible { outline: none; box-shadow: var(--ui-focus-ring); border-r
   pointer-events: none;
 }
 
-/* narrow screens: 8 tabs no longer fit — the strip scrolls horizontally
-   inside the capsule while divider / swatch / ⋯ stay fixed at the right.
-   Desktop (>=760px) is untouched: everything stays inline, no scroll. */
-@media (max-width: 759.98px) {
+/* narrow screens: 11 tabs no longer fit — the strip scrolls horizontally
+   inside the capsule while the divider / swatch / actions stay fixed at the
+   right. The full inline bar measures ~803px (11×44 tabs + divider + swatch
+   + actions), so wide desktop (>=900px) keeps everything inline with no
+   scroll; below that the strip scrolls. */
+@media (max-width: 899.98px) {
   .bar { max-width: calc(100vw - 24px); }
   .tabs {
-    min-width: 0; /* let the flex item shrink below its 8x44px content */
+    min-width: 0; /* let the flex item shrink below its 11x44px content */
     overflow-x: auto;
     overscroll-behavior-x: contain;
     padding: 4px; /* keeps the focus ring inside the scroll clip */
