@@ -10,5 +10,7 @@ import { flockMode } from './flock';
 import { rdMode } from './rd';
 import { mojiMode } from './moji';
 import { hanabiMode } from './hanabi';
+import { driftMode } from './drift';
+import { gravityMode } from './gravity';
 
-export const modes: Mode[] = [fluidMode, galaxyMode, flockMode, rdMode, mojiMode, hanabiMode];
+export const modes: Mode[] = [fluidMode, galaxyMode, flockMode, rdMode, mojiMode, hanabiMode, driftMode, gravityMode];

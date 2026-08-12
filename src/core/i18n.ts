@@ -74,6 +74,8 @@ const STRINGS: Record<string, { ja: string; en: string }> = {
   modeDesc_rd: { ja: 'ひとつの数式から、生きた模様が育つ', en: 'Living patterns grown from one equation' },
   modeDesc_moji: { ja: '言葉が光にほどけ、また言葉にもどる', en: 'Words dissolve into light, then find their shape again' },
   modeDesc_hanabi: { ja: '夜空に咲いて、散る光', en: 'Light that blooms and falls' },
+  modeDesc_drift: { ja: '星の海を、ただよう', en: 'Adrift in a sea of stars' },
+  modeDesc_gravity: { ja: '光さえ、曲がって落ちる', en: 'Where even light bends and falls' },
 
   aboutFooterRuns: { ja: 'ブラウザ内で100%動作', en: 'runs 100% in your browser' },
   aboutFooterLicense: { ja: 'MITライセンス', en: 'MIT License' },
