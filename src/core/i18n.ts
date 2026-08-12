@@ -30,8 +30,8 @@ const STRINGS: Record<string, { ja: string; en: string }> = {
 
   aboutTagline: { ja: '光の遊び場', en: 'Playground of Light' },
   aboutIntro: {
-    ja: '流体、銀河、群れ、模様、文字、そして花火——6つのGPUシミュレーションが、あなたのデバイスの中だけでリアルタイムに光ります。サーバーなし、アップロードなし、追跡なし。ただ触れて、光をかき混ぜてください。',
-    en: 'Fluid, galaxy, flock, pattern, letters, fireworks — six GPU simulations glowing in real time, entirely on your device. No servers, no uploads, no tracking. Just reach in and stir the light.',
+    ja: '流体、銀河、群れ、模様、文字、花火、遊泳、そして重力——8つのGPUシミュレーションが、あなたのデバイスの中だけでリアルタイムに光ります。サーバーなし、アップロードなし、追跡なし。ただ触れて、光をかき混ぜてください。',
+    en: 'Fluid, galaxy, flock, pattern, letters, fireworks, drift, and gravity — eight GPU simulations glowing in real time, entirely on your device. No servers, no uploads, no tracking. Just reach in and stir the light.',
   },
   aboutPrivacyMic: {
     ja: 'マイクの音は端末内で解析されるだけ。録音も送信もされません。',
@@ -39,13 +39,13 @@ const STRINGS: Record<string, { ja: string; en: string }> = {
   },
   aboutMadeByTitle: { ja: 'AIチームがつくりました', en: 'Built by a team of AIs' },
   aboutMadeByBody: {
-    ja: 'デザイン会議が世界観を描き、基盤エンジニアがエンジンを組み、6体のエージェントがそれぞれのモードを並行して実装。意地悪なレビュアーが粗を探し、自動検証ハーネスが全モードに緑のランプを灯すまで作り直す——その全体を、Claudeが指揮しました。',
-    en: 'A design panel sketched the vision, a foundation engineer built the engine, and six agents grew one mode each in parallel. Adversarial reviewers hunted for flaws, and nothing shipped until an automated verify harness turned every mode green — the whole ensemble orchestrated by Claude.',
+    ja: 'デザイン会議が世界観を描き、基盤エンジニアがエンジンを組み、8体のエージェントがそれぞれのモードを並行して実装。意地悪なレビュアーが粗を探し、自動検証ハーネスが全モードに緑のランプを灯すまで作り直す——その全体を、Claudeが指揮しました。',
+    en: 'A design panel sketched the vision, a foundation engineer built the engine, and eight agents grew one mode each in parallel. Adversarial reviewers hunted for flaws, and nothing shipped until an automated verify harness turned every mode green — the whole ensemble orchestrated by Claude.',
   },
   creditDirection: { ja: '監督', en: 'Direction' },
   creditDirectionBy: { ja: 'Claude（オーケストレーター）', en: 'Claude (orchestrator)' },
   creditGraphics: { ja: 'グラフィックス', en: 'Graphics' },
-  creditGraphicsBy: { ja: 'モード担当エージェント ×6', en: 'Six mode engineer agents' },
+  creditGraphicsBy: { ja: 'モード担当エージェント ×8', en: 'Eight mode engineer agents' },
   creditUx: { ja: 'UX', en: 'UX' },
   creditUxBy: { ja: 'デザイン会議エージェント', en: 'Design panel agents' },
   creditQa: { ja: 'QA', en: 'QA' },

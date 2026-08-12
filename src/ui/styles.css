@@ -85,13 +85,19 @@ button:focus-visible { outline: none; box-shadow: var(--ui-focus-ring); border-r
 .bar-wrap {
   position: fixed;
   bottom: calc(12px + env(safe-area-inset-bottom));
-  left: 50%;
-  transform: translateX(-50%);
+  /* full-width flex centering (not left:50% + translateX): the shrink-to-fit
+     width of a left:50% fixed box is capped at 50vw, which would crush the
+     bar once .tabs is allowed to shrink below its content */
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: center;
+  pointer-events: none; /* the full-width wrap must not block canvas touches */
   z-index: 40;
   transition: transform 0.45s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.4s ease;
 }
 .bar-wrap.hidden {
-  transform: translateX(-50%) translateY(calc(100% + 16px));
+  transform: translateY(calc(100% + 16px));
   opacity: 0;
   pointer-events: none;
   /* remove hidden bar from the tab order once the slide-out finishes;
@@ -99,6 +105,7 @@ button:focus-visible { outline: none; box-shadow: var(--ui-focus-ring); border-r
   visibility: hidden;
   transition: transform 0.45s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.4s ease, visibility 0s 0.45s;
 }
+.bar-wrap.hidden .bar { pointer-events: none; }
 
 .bar {
   display: flex;
@@ -106,6 +113,7 @@ button:focus-visible { outline: none; box-shadow: var(--ui-focus-ring); border-r
   gap: 2px;
   height: 56px;
   padding: 0 10px;
+  pointer-events: auto; /* re-enable inside the pointer-events:none wrap */
   touch-action: manipulation;
   border-radius: 28px;
   background: #0e1118f0;
@@ -165,6 +173,35 @@ button:focus-visible { outline: none; box-shadow: var(--ui-focus-ring); border-r
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ui-accent) 32%, transparent);
   transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), width 0.25s ease;
   pointer-events: none;
+}
+
+/* narrow screens: 8 tabs no longer fit — the strip scrolls horizontally
+   inside the capsule while divider / swatch / ⋯ stay fixed at the right.
+   Desktop (>=760px) is untouched: everything stays inline, no scroll. */
+@media (max-width: 759.98px) {
+  .bar { max-width: calc(100vw - 24px); }
+  .tabs {
+    min-width: 0; /* let the flex item shrink below its 8x44px content */
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    padding: 4px; /* keeps the focus ring inside the scroll clip */
+    scrollbar-width: none; /* Firefox */
+  }
+  .tabs::-webkit-scrollbar { display: none; width: 0; height: 0; }
+  /* soft fade on whichever edge is actually clipped (classes set from JS
+     on scroll / resize / mode change) */
+  .tabs.mask-l {
+    -webkit-mask-image: linear-gradient(to right, transparent 0, #000 22px);
+    mask-image: linear-gradient(to right, transparent 0, #000 22px);
+  }
+  .tabs.mask-r {
+    -webkit-mask-image: linear-gradient(to left, transparent 0, #000 22px);
+    mask-image: linear-gradient(to left, transparent 0, #000 22px);
+  }
+  .tabs.mask-l.mask-r {
+    -webkit-mask-image: linear-gradient(to right, transparent 0, #000 22px, #000 calc(100% - 22px), transparent 100%);
+    mask-image: linear-gradient(to right, transparent 0, #000 22px, #000 calc(100% - 22px), transparent 100%);
+  }
 }
 
 .bar-divider {
@@ -685,7 +722,7 @@ button:focus-visible { outline: none; box-shadow: var(--ui-focus-ring); border-r
    -------------------------------------------------------------------------- */
 @media (prefers-reduced-motion: reduce) {
   .bar-wrap { transition: opacity 0.4s ease; }
-  .bar-wrap.hidden { transform: translateX(-50%); }
+  .bar-wrap.hidden { transform: none; }
   .tab-pill { transition: none; }
   .tabs.shimmer::after { animation: none; opacity: 0; }
   .bar-handle.visible { animation: none; opacity: 0.45; }

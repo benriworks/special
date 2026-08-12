@@ -119,6 +119,11 @@ async function testMode(browser, modeId) {
     await waitFrames(page, 30);
     await page.screenshot({ path: `${outDir}/${modeId}-interact.png` });
 
+    // The fps stat is an EMA seeded optimistically at boot and dented by
+    // shader compiles + quality-governor re-inits; on software rasterizers
+    // (SwiftShader) it is still climbing at frame ~100. Let it converge so
+    // the gate judges steady-state rendering, not the cold-start transient.
+    await waitFrames(page, 120);
     const stats = await page.evaluate(() => window.__lumina.stats());
     result.fps = stats.fps;
     result.luma = stats.luma;

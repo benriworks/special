@@ -241,6 +241,36 @@ export function mountShell(root: HTMLElement, engine: Engine): void {
     setTimeout(() => { if (chipEl === mine) { mine.remove(); chipEl = null; } else mine.remove(); }, 950);
   }
 
+  // ---- scrollable tab strip (narrow screens) --------------------------------------
+  // Under 760px the 8-tab strip overflows and scrolls horizontally; the pill
+  // and the tabs share the strip's content coordinate space, so offsetLeft
+  // stays valid at any scroll position.
+  function tabsScrollable(): boolean {
+    return tabsEl.scrollWidth > tabsEl.clientWidth + 1;
+  }
+  function updateTabFades(): void {
+    const scrollable = tabsScrollable();
+    const max = tabsEl.scrollWidth - tabsEl.clientWidth;
+    tabsEl.classList.toggle('mask-l', scrollable && tabsEl.scrollLeft > 2);
+    tabsEl.classList.toggle('mask-r', scrollable && tabsEl.scrollLeft < max - 2);
+  }
+  tabsEl.addEventListener('scroll', updateTabFades, { passive: true });
+
+  function scrollActiveTabIntoView(): void {
+    if (!tabsScrollable()) return;
+    const active = tabBtns.get(engine.activeModeId);
+    if (!active) return;
+    const peek = 14; // reveal a sliver of the neighbouring tab
+    const lo = active.offsetLeft - peek;
+    const hi = active.offsetLeft + active.offsetWidth + peek;
+    let target = tabsEl.scrollLeft;
+    if (lo < target) target = lo;
+    else if (hi > target + tabsEl.clientWidth) target = hi - tabsEl.clientWidth;
+    else return; // already fully visible
+    target = Math.max(0, Math.min(target, tabsEl.scrollWidth - tabsEl.clientWidth));
+    tabsEl.scrollTo({ left: target, behavior: reducedMotion ? 'auto' : 'smooth' });
+  }
+
   // ---- sliding accent pill --------------------------------------------------------
   function updatePill(): void {
     const active = tabBtns.get(engine.activeModeId);
@@ -251,6 +281,8 @@ export function mountShell(root: HTMLElement, engine: Engine): void {
       b.classList.toggle('active', id === engine.activeModeId);
       b.setAttribute('aria-selected', String(id === engine.activeModeId));
     }
+    scrollActiveTabIntoView(); // keyboard, swipe, deep link, kiosk auto-cycle
+    updateTabFades();
   }
 
   function updateSwatch(): void {
@@ -326,11 +358,18 @@ export function mountShell(root: HTMLElement, engine: Engine): void {
   if (!fullscreenSupported()) fsBtn.style.display = 'none';
 
   // ---- capsule swipe cycles modes ------------------------------------------------
+  // When the tab strip scrolls (narrow screens), a horizontal swipe on the
+  // strip belongs to native scrolling — swipe-to-cycle stays available on the
+  // non-tab region of the bar (divider / swatch / ⋯). On wide screens the
+  // strip never scrolls, so a swipe anywhere on the bar cycles as before.
   let swipeGuard = false;
   let swipeStart: { x: number; y: number } | null = null;
   bar.addEventListener('pointerdown', (e) => {
-    if (e.pointerType === 'touch') swipeStart = { x: e.clientX, y: e.clientY };
+    if (e.pointerType !== 'touch') return;
+    if (tabsScrollable() && tabsEl.contains(e.target as Node)) return;
+    swipeStart = { x: e.clientX, y: e.clientY };
   });
+  bar.addEventListener('pointercancel', () => { swipeStart = null; });
   bar.addEventListener('pointerup', (e) => {
     if (!swipeStart) return;
     const dx = e.clientX - swipeStart.x;

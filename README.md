@@ -4,8 +4,8 @@
 
 # LUMINA — 光の遊び場
 
-**触れて遊ぶ6つのGPUアート世界。ブラウザだけで動く光の遊び場。**
-*Six GPU worlds of light to touch and play, running entirely in your browser.*
+**触れて遊ぶ8つのGPUアート世界。ブラウザだけで動く光の遊び場。**
+*Eight GPU worlds of light to touch and play, running entirely in your browser.*
 
 **▶ https://benriworks.github.io/special/**
 （GitHub Pages の設定後に公開されます / goes live after Pages setup — see [公開手順](#公開手順) / [Deployment](#deployment)）
@@ -16,7 +16,7 @@
 
 ## 日本語
 
-### ✦ 6つのモード
+### ✦ 8つのモード
 
 | # | モード | ひとこと |
 |---|--------|----------|
@@ -26,12 +26,14 @@
 | 4 | 反応拡散 *RD* | 生命のように育つ模様 |
 | 5 | 文字 *Moji* | 文字がほどけて光になる |
 | 6 | 花火 *Hanabi* | 夜空に咲いて、散る光 |
+| 7 | 遊泳 *Drift* | 星の海を、ただよう |
+| 8 | 重力 *Gravity* | 光さえ、曲がって落ちる |
 
 ### 操作
 
 | キー / ジェスチャ | 動作 |
 |---|---|
-| `1` – `6` | モード切替 |
+| `1` – `8` | モード切替 |
 | `Space` | パルス |
 | `F` | 全画面 |
 | `S` | PNG保存 |
@@ -51,7 +53,7 @@
 
 ### 音に反応（マイク）
 
-バーのマイクボタン（または `M` キー）をオンにすると、6つのモードすべてが周囲の音——音楽、拍手、声——にほのかに反応します。初回はブラウザがマイクの使用許可を求めます。
+バーのマイクボタン（または `M` キー）をオンにすると、8つのモードすべてが周囲の音——音楽、拍手、声——にほのかに反応します。初回はブラウザがマイクの使用許可を求めます。
 
 > マイクの音は端末内で解析されるだけ。録音も送信もされません。
 
@@ -65,6 +67,7 @@ URL に `#kiosk=1` を付けると、展示・イベント向けの振る舞い�
 
 ```
 https://benriworks.github.io/special/#kiosk=1&m=hanabi&t=sumi
+https://benriworks.github.io/special/#kiosk=1&m=gravity&t=ember
 ```
 
 ### AIチームがつくりました
@@ -76,7 +79,7 @@ https://benriworks.github.io/special/#kiosk=1&m=hanabi&t=sumi
 | 監督 | オーケストレーター（Claude） |
 | 企画・デザイン | デザインパネル・エージェント |
 | 基盤 | ファウンデーション・エンジニア |
-| グラフィックス | 6人のモード・エンジニア（並列作業） |
+| グラフィックス | 8人のモード・エンジニア（並列作業） |
 | QA | 敵対的レビュー・エージェント |
 | 検証 | 自動検証ハーネス |
 
@@ -114,7 +117,7 @@ GitHub Pages（GitHub Actions 経由）で公開します。リポジトリの�
 
 ## English
 
-### ✦ Six Modes
+### ✦ Eight Modes
 
 | # | Mode | One-liner |
 |---|------|-----------|
@@ -124,12 +127,14 @@ GitHub Pages（GitHub Actions 経由）で公開します。リポジトリの�
 | 4 | RD（反応拡散） | Reaction–diffusion patterns that grow like living things |
 | 5 | Moji（文字） | Characters dissolving into light |
 | 6 | Hanabi（花火） | Fireworks that bloom and fall across the night |
+| 7 | Drift（遊泳） | Adrift in a sea of stars |
+| 8 | Gravity（重力） | Where even light bends and falls |
 
 ### Controls
 
 | Key / Gesture | Action |
 |---|---|
-| `1` – `6` | Switch modes |
+| `1` – `8` | Switch modes |
 | `Space` | Pulse |
 | `F` | Fullscreen |
 | `S` | Save PNG |
@@ -149,7 +154,7 @@ GitHub Pages（GitHub Actions 経由）で公開します。リポジトリの�
 
 ### Sound Reactivity (Microphone)
 
-Turn on the mic button in the bar (or press `M`) and all six modes subtly react to the sound around you — music, claps, voices. Your browser asks for microphone permission the first time.
+Turn on the mic button in the bar (or press `M`) and all eight modes subtly react to the sound around you — music, claps, voices. Your browser asks for microphone permission the first time.
 
 > Microphone audio is analysed on your device only — never recorded, never uploaded.
 
@@ -163,6 +168,7 @@ Append `#kiosk=1` to the URL for exhibition / event-friendly behavior:
 
 ```
 https://benriworks.github.io/special/#kiosk=1&m=hanabi&t=sumi
+https://benriworks.github.io/special/#kiosk=1&m=gravity&t=ember
 ```
 
 ### Built by a team of AIs
@@ -174,7 +180,7 @@ This site was designed, built, and reviewed end-to-end by a team of AI agents or
 | Direction | Orchestrator (Claude) |
 | Concept & design | Design panel agents |
 | Foundation | Foundation engineer |
-| Graphics | Six mode engineers, working in parallel |
+| Graphics | Eight mode engineers, working in parallel |
 | QA | Adversarial review agents |
 | Verification | Automated acceptance harness |
 
