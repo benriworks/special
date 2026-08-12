@@ -11,6 +11,7 @@ const MODE_ICONS: Record<string, string> = {
   flock: wrap('<path d="M5 15l2.6-4.6L10 15z"/><path d="M12 9l2.6-4.6L17 9z"/><path d="M13 19l2.6-4.6L18 19z"/>'),
   rd: wrap('<circle cx="12" cy="12" r="2"/><circle cx="12" cy="12" r="5.5"/><circle cx="12" cy="12" r="9"/>'),
   moji: wrap('<path d="M5 7h14"/><path d="M12 4v6c0 5-2.5 8-6.5 9.5"/><path d="M9 10c1.5 5.5 5 8.5 9.5 9.5"/>'),
+  hanabi: wrap('<circle cx="12" cy="10" r="1.3" fill="currentColor" stroke="none"/><path d="M12 3v3.5"/><path d="M12 13.5v3"/><path d="M5.9 6.5l2.5 2"/><path d="M18.1 6.5l-2.5 2"/><path d="M5 12h3.5"/><path d="M15.5 12H19"/><path d="M6.8 16l1.9-2.4"/><path d="M17.2 16l-1.9-2.4"/><path d="M12 19.5v1.5"/>'),
 };
 
 export function modeIcon(id: string): string {

@@ -9,5 +9,6 @@ import { galaxyMode } from './galaxy';
 import { flockMode } from './flock';
 import { rdMode } from './rd';
 import { mojiMode } from './moji';
+import { hanabiMode } from './hanabi';
 
-export const modes: Mode[] = [fluidMode, galaxyMode, flockMode, rdMode, mojiMode];
+export const modes: Mode[] = [fluidMode, galaxyMode, flockMode, rdMode, mojiMode, hanabiMode];

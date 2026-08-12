@@ -61,6 +61,7 @@ const STRINGS: Record<string, { ja: string; en: string }> = {
   modeDesc_flock: { ja: '光の群れが、ひとつの心で泳ぐ', en: 'A murmuration of light with a single mind' },
   modeDesc_rd: { ja: 'ひとつの数式から、生きた模様が育つ', en: 'Living patterns grown from one equation' },
   modeDesc_moji: { ja: '言葉が光にほどけ、また言葉にもどる', en: 'Words dissolve into light, then find their shape again' },
+  modeDesc_hanabi: { ja: '夜空に咲いて、散る光', en: 'Light that blooms and falls' },
 
   aboutFooterRuns: { ja: 'ブラウザ内で100%動作', en: 'runs 100% in your browser' },
   aboutFooterLicense: { ja: 'MITライセンス', en: 'MIT License' },
